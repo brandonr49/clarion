@@ -31,4 +31,5 @@ async def query_brain(body: QueryRequest, request: Request):
     return QueryResponse(
         query_id=str(uuid4()),
         raw_text=result.content,
+        view=result.view,
     )

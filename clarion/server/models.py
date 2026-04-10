@@ -72,6 +72,7 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     query_id: str
     raw_text: str
+    view: dict | None = None  # structured view data (checklist, table, etc.)
 
 
 # -- Clarification Models --

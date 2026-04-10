@@ -41,16 +41,18 @@ Key changes that improved all models:
 
 Prompts live in `clarion/prompts/` as markdown files and can be iterated without code changes.
 
-## Phase 2: Query + Views
+## Phase 2: Query + Views (COMPLETE)
 
-Focus: make the query system actually useful.
-
-- [ ] Improve system prompts based on e2e observations
-- [ ] Query response parsing — extract structured view data from LLM responses
-- [ ] View component library (checklist, table, key-value, markdown, mermaid)
-- [ ] Client-side view rendering in the web UI
-- [ ] Client type awareness (phone vs desktop context in queries)
-- [ ] Test with larger models (8B, 70B, Claude Sonnet) to evaluate quality
+- [x] Improve system prompts based on e2e observations
+- [x] Query response parsing — extract structured JSON views from LLM responses
+- [x] View type definitions (checklist, table, key_value, markdown, mermaid, composite)
+- [x] View parser (extracts JSON code blocks from LLM output, validates against schemas)
+- [x] API returns structured `view` alongside `raw_text` in query responses
+- [x] Client-side view renderers (checklist with checkboxes, table, key-value, markdown, composite)
+- [x] Interactive views — checkbox clicks submit notes via `POST /notes` with `input_method: "ui_action"`
+- [x] Client type awareness in query prompt ({source_client} variable)
+- [x] 17 new unit tests for view parsing and types
+- [x] Updated benchmark confirms qwen2.5:7b and qwen3:8b both at 100%
 
 ## Phase 3: Model Routing + Tool Evolution
 

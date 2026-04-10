@@ -27,6 +27,7 @@ class HarnessResult:
     tool_calls_made: int
     total_usage: TokenUsage
     model_used: str
+    view: dict | None = None  # structured view data, if extracted
 
 
 class Harness:
@@ -63,6 +64,8 @@ class Harness:
 
     async def handle_query(self, query: str, source_client: str) -> HarnessResult:
         """Answer a user query: read the brain, return a view."""
+        from clarion.views.parser import extract_view
+
         provider = self._router.get_provider(Tier.STANDARD)
         system_prompt = self._build_query_system_prompt(source_client)
         brain_index = self._brain.read_index() or "Brain is empty."
@@ -77,7 +80,16 @@ class Harness:
             Message(role="user", content=user_content),
         ]
 
-        return await self._agent_loop(provider, messages, task_type="query")
+        result = await self._agent_loop(provider, messages, task_type="query")
+
+        # Extract structured view from response
+        view, raw_text = extract_view(result.content)
+        if view is not None:
+            logger.info("Extracted %s view from query response", view.get("type"))
+            result.view = view
+            result.content = raw_text if raw_text else result.content
+
+        return result
 
     async def _agent_loop(
         self,

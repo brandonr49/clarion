@@ -399,13 +399,20 @@ async def scenario_query(
         )
 
         duration = time.monotonic() - start
+
+        # Check content in either the view data or raw text
         response_lower = result.content.lower()
+        view_text = json.dumps(result.view).lower() if result.view else ""
+        search_text = response_lower + " " + view_text
 
         expected = ["milk", "eggs", "bread"]
-        found = [item for item in expected if item in response_lower]
-        missing = [item for item in expected if item not in response_lower]
+        found = [item for item in expected if item in search_text]
+        missing = [item for item in expected if item not in search_text]
 
+        has_view = result.view is not None
         passed = len(found) >= 2
+
+        notes = f"view={'YES: ' + result.view.get('type', '?') if has_view else 'NO'}"
 
         return ScenarioResult(
             scenario="query_grocery",
@@ -417,6 +424,7 @@ async def scenario_query(
             content_missing=missing,
             response_text=result.content[:300],
             duration_s=duration,
+            notes=notes,
         )
     except ClarificationRequested as e:
         return ScenarioResult(

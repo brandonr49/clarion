@@ -9,20 +9,20 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     background: #0f0f0f; color: #e0e0e0;
-    max-width: 800px; margin: 0 auto; padding: 20px;
+    max-width: 900px; margin: 0 auto; padding: 20px;
   }
   h1 { font-size: 1.5rem; margin-bottom: 4px; color: #fff; }
   h1 span { color: #666; font-weight: normal; font-size: 0.8rem; }
   h2 { font-size: 1.1rem; margin: 24px 0 12px; color: #aaa; border-bottom: 1px solid #222; padding-bottom: 4px; }
 
-  /* Note input */
+  /* Input areas */
   .input-area { margin: 16px 0; }
-  .input-area textarea {
+  .input-area textarea, .query-area input {
     width: 100%; padding: 10px; border: 1px solid #333; border-radius: 6px;
-    background: #1a1a1a; color: #e0e0e0; font-size: 0.95rem;
-    resize: vertical; min-height: 60px; font-family: inherit;
+    background: #1a1a1a; color: #e0e0e0; font-size: 0.95rem; font-family: inherit;
   }
-  .input-area textarea:focus { outline: none; border-color: #555; }
+  .input-area textarea { resize: vertical; min-height: 60px; }
+  .input-area textarea:focus, .query-area input:focus { outline: none; border-color: #555; }
   .input-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
   .input-row select {
     padding: 6px 10px; border: 1px solid #333; border-radius: 4px;
@@ -34,11 +34,11 @@
   }
   .btn-primary { background: #2563eb; color: #fff; }
   .btn-primary:hover { background: #1d4ed8; }
-  .btn-primary:disabled { background: #333; cursor: not-allowed; }
+  .btn-primary:disabled { background: #333; color: #666; cursor: not-allowed; }
   .btn-secondary { background: #333; color: #ccc; }
   .btn-secondary:hover { background: #444; }
 
-  /* Status badge */
+  /* Status badges */
   .status {
     display: inline-block; padding: 2px 8px; border-radius: 3px;
     font-size: 0.75rem; font-weight: 500;
@@ -59,17 +59,76 @@
 
   /* Query area */
   .query-area { margin: 16px 0; }
-  .query-area input {
-    width: 100%; padding: 10px; border: 1px solid #333; border-radius: 6px;
-    background: #1a1a1a; color: #e0e0e0; font-size: 0.95rem; font-family: inherit;
+
+  /* View container */
+  .view-container {
+    margin-top: 12px; display: none;
   }
-  .query-area input:focus { outline: none; border-color: #555; }
-  .query-response {
-    margin-top: 12px; padding: 12px; border: 1px solid #222; border-radius: 6px;
+  .view-container.visible { display: block; }
+
+  /* Shared view styles */
+  .view-card {
+    border: 1px solid #222; border-radius: 8px; background: #141414;
+    overflow: hidden; margin-bottom: 12px;
+  }
+  .view-title {
+    padding: 10px 14px; font-size: 0.95rem; font-weight: 600;
+    color: #fff; background: #1a1a1a; border-bottom: 1px solid #222;
+  }
+  .view-body { padding: 12px 14px; }
+
+  /* Checklist view */
+  .checklist-section-heading {
+    font-size: 0.85rem; font-weight: 600; color: #aaa;
+    margin: 12px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #1a1a1a;
+  }
+  .checklist-section-heading:first-child { margin-top: 0; }
+  .checklist-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; font-size: 0.9rem;
+  }
+  .checklist-item input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: #2563eb; cursor: pointer;
+  }
+  .checklist-item.checked label { color: #555; text-decoration: line-through; }
+  .checklist-item label { cursor: pointer; flex: 1; }
+
+  /* Table view */
+  .view-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .view-table th {
+    text-align: left; padding: 8px 10px; color: #aaa; font-weight: 600;
+    border-bottom: 2px solid #333; background: #1a1a1a;
+  }
+  .view-table td { padding: 7px 10px; border-bottom: 1px solid #1a1a1a; }
+  .view-table tr:hover td { background: #1a1a1a; }
+
+  /* Key-value view */
+  .kv-row { display: flex; padding: 6px 0; border-bottom: 1px solid #1a1a1a; }
+  .kv-row:last-child { border-bottom: none; }
+  .kv-key { color: #aaa; font-weight: 500; width: 140px; flex-shrink: 0; font-size: 0.85rem; }
+  .kv-value { font-size: 0.9rem; }
+
+  /* Markdown view */
+  .markdown-content { font-size: 0.9rem; line-height: 1.6; }
+  .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+    color: #fff; margin: 16px 0 8px;
+  }
+  .markdown-content h1 { font-size: 1.2rem; }
+  .markdown-content h2 { font-size: 1.05rem; }
+  .markdown-content h3 { font-size: 0.95rem; }
+  .markdown-content ul, .markdown-content ol { padding-left: 20px; margin: 8px 0; }
+  .markdown-content li { margin: 3px 0; }
+  .markdown-content code {
+    background: #1a1a1a; padding: 2px 5px; border-radius: 3px; font-size: 0.85rem;
+  }
+  .markdown-content p { margin: 8px 0; }
+
+  /* Raw text fallback */
+  .raw-text {
+    padding: 12px; border: 1px solid #222; border-radius: 6px;
     background: #141414; white-space: pre-wrap; font-size: 0.9rem;
-    display: none;
+    line-height: 1.5;
   }
-  .query-response.visible { display: block; }
 
   /* Clarifications */
   .clar-item {
@@ -85,11 +144,13 @@
 
   .loading { color: #666; font-style: italic; }
   .empty { color: #444; font-style: italic; padding: 10px; }
+  .spinner { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
-<h1>Clarion <span>v0.1.0</span></h1>
+<h1>Clarion <span>v0.2.0</span></h1>
 
 <h2>New Note</h2>
 <div class="input-area">
@@ -109,7 +170,7 @@
   <div class="input-row" style="margin-top:8px">
     <button class="btn-primary" onclick="submitQuery()" id="queryBtn">Ask</button>
   </div>
-  <div id="queryResponse" class="query-response"></div>
+  <div id="viewContainer" class="view-container"></div>
 </div>
 
 <div id="clarSection" style="display:none">
@@ -122,6 +183,200 @@
 
 <script>
 const API = '/api/v1';
+
+// -- View Renderers --
+
+function renderView(view) {
+  if (!view || !view.type) return null;
+  switch (view.type) {
+    case 'checklist': return renderChecklist(view);
+    case 'table': return renderTable(view);
+    case 'key_value': return renderKeyValue(view);
+    case 'markdown': return renderMarkdown(view);
+    case 'composite': return renderComposite(view);
+    default: return null;
+  }
+}
+
+function renderChecklist(view) {
+  const card = document.createElement('div');
+  card.className = 'view-card';
+  if (view.title) {
+    const title = document.createElement('div');
+    title.className = 'view-title';
+    title.textContent = view.title;
+    card.appendChild(title);
+  }
+  const body = document.createElement('div');
+  body.className = 'view-body';
+
+  (view.sections || []).forEach(section => {
+    if (section.heading) {
+      const heading = document.createElement('div');
+      heading.className = 'checklist-section-heading';
+      heading.textContent = section.heading;
+      body.appendChild(heading);
+    }
+    (section.items || []).forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'checklist-item' + (item.checked ? ' checked' : '');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!item.checked;
+      cb.addEventListener('change', () => {
+        const action = cb.checked ? 'completed' : 'uncompleted';
+        submitInteraction(`${action}: ${item.label}`);
+        row.classList.toggle('checked', cb.checked);
+      });
+
+      const label = document.createElement('label');
+      label.textContent = item.label;
+      label.addEventListener('click', () => cb.click());
+
+      row.appendChild(cb);
+      row.appendChild(label);
+      body.appendChild(row);
+    });
+  });
+
+  card.appendChild(body);
+  return card;
+}
+
+function renderTable(view) {
+  const card = document.createElement('div');
+  card.className = 'view-card';
+  if (view.title) {
+    const title = document.createElement('div');
+    title.className = 'view-title';
+    title.textContent = view.title;
+    card.appendChild(title);
+  }
+  const body = document.createElement('div');
+  body.className = 'view-body';
+  body.style.padding = '0';
+  body.style.overflowX = 'auto';
+
+  const table = document.createElement('table');
+  table.className = 'view-table';
+
+  if (view.headers && view.headers.length) {
+    const thead = document.createElement('thead');
+    const tr = document.createElement('tr');
+    view.headers.forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    table.appendChild(thead);
+  }
+
+  const tbody = document.createElement('tbody');
+  (view.rows || []).forEach(row => {
+    const tr = document.createElement('tr');
+    (Array.isArray(row) ? row : []).forEach(cell => {
+      const td = document.createElement('td');
+      td.textContent = String(cell);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  body.appendChild(table);
+  card.appendChild(body);
+  return card;
+}
+
+function renderKeyValue(view) {
+  const card = document.createElement('div');
+  card.className = 'view-card';
+  if (view.title) {
+    const title = document.createElement('div');
+    title.className = 'view-title';
+    title.textContent = view.title;
+    card.appendChild(title);
+  }
+  const body = document.createElement('div');
+  body.className = 'view-body';
+
+  (view.pairs || []).forEach(pair => {
+    const row = document.createElement('div');
+    row.className = 'kv-row';
+    const key = document.createElement('span');
+    key.className = 'kv-key';
+    key.textContent = pair.key;
+    const value = document.createElement('span');
+    value.className = 'kv-value';
+    value.textContent = pair.value;
+    row.appendChild(key);
+    row.appendChild(value);
+    body.appendChild(row);
+  });
+
+  card.appendChild(body);
+  return card;
+}
+
+function renderMarkdown(view) {
+  const card = document.createElement('div');
+  card.className = 'view-card';
+  const body = document.createElement('div');
+  body.className = 'view-body markdown-content';
+  body.innerHTML = simpleMarkdown(view.content || '');
+  card.appendChild(body);
+  return card;
+}
+
+function renderComposite(view) {
+  const container = document.createElement('div');
+  (view.children || []).forEach(child => {
+    const rendered = renderView(child);
+    if (rendered) container.appendChild(rendered);
+  });
+  return container;
+}
+
+function simpleMarkdown(text) {
+  // Very basic markdown -> HTML (no libraries)
+  let html = escHtml(text);
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  // Paragraphs (lines separated by blank lines)
+  html = html.replace(/\n\n/g, '</p><p>');
+  // Line breaks
+  html = html.replace(/\n/g, '<br>');
+  return '<p>' + html + '</p>';
+}
+
+// -- Interactions --
+
+async function submitInteraction(content) {
+  await fetch(`${API}/notes`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      content: content,
+      source_client: 'web',
+      input_method: 'ui_action',
+    }),
+  });
+}
+
+// -- Note Submission --
 
 async function submitNote() {
   const input = document.getElementById('noteInput');
@@ -153,16 +408,18 @@ async function submitNote() {
   }
 }
 
+// -- Query --
+
 async function submitQuery() {
   const input = document.getElementById('queryInput');
   const btn = document.getElementById('queryBtn');
-  const responseDiv = document.getElementById('queryResponse');
+  const container = document.getElementById('viewContainer');
   const query = input.value.trim();
   if (!query) return;
 
   btn.disabled = true;
-  responseDiv.textContent = 'Thinking...';
-  responseDiv.classList.add('visible');
+  container.innerHTML = '<span class="loading"><span class="spinner">&#9696;</span> Thinking...</span>';
+  container.classList.add('visible');
 
   try {
     const resp = await fetch(`${API}/query`, {
@@ -172,17 +429,46 @@ async function submitQuery() {
     });
     if (!resp.ok) {
       const err = await resp.json();
-      responseDiv.textContent = `Error: ${err.detail || JSON.stringify(err)}`;
+      container.innerHTML = `<div class="raw-text">Error: ${escHtml(err.detail || JSON.stringify(err))}</div>`;
       return;
     }
     const data = await resp.json();
-    responseDiv.textContent = data.raw_text || '(No response)';
+
+    container.innerHTML = '';
+
+    // Try structured view first
+    if (data.view) {
+      const rendered = renderView(data.view);
+      if (rendered) {
+        container.appendChild(rendered);
+        // Also show raw text below if there is any
+        if (data.raw_text && data.raw_text.trim()) {
+          const raw = document.createElement('div');
+          raw.className = 'raw-text';
+          raw.style.marginTop = '8px';
+          raw.style.fontSize = '0.8rem';
+          raw.style.color = '#666';
+          raw.textContent = data.raw_text;
+          container.appendChild(raw);
+        }
+        return;
+      }
+    }
+
+    // Fallback to raw text
+    const raw = document.createElement('div');
+    raw.className = 'raw-text';
+    raw.innerHTML = simpleMarkdown(data.raw_text || '(No response)');
+    container.appendChild(raw);
+
   } catch (e) {
-    responseDiv.textContent = `Error: ${e.message}`;
+    container.innerHTML = `<div class="raw-text">Error: ${escHtml(e.message)}</div>`;
   } finally {
     btn.disabled = false;
   }
 }
+
+// -- Note List --
 
 async function loadNotes() {
   try {
@@ -200,16 +486,18 @@ async function loadNotes() {
         <div class="note-content">${escHtml(n.content)}</div>
         <div class="note-meta">
           <span class="status status-${n.status}">${n.status}</span>
-          ${n.source_client} &middot; ${n.input_method} &middot;
+          ${escHtml(n.source_client)} &middot; ${escHtml(n.input_method)} &middot;
           ${new Date(n.created_at).toLocaleString()}
         </div>
       </div>
     `).join('');
   } catch (e) {
     document.getElementById('noteList').innerHTML =
-      `<div class="empty">Failed to load notes: ${e.message}</div>`;
+      `<div class="empty">Failed to load notes: ${escHtml(e.message)}</div>`;
   }
 }
+
+// -- Clarifications --
 
 async function loadClarifications() {
   try {
@@ -233,9 +521,7 @@ async function loadClarifications() {
         </div>
       </div>
     `).join('');
-  } catch (e) {
-    // Silent fail for clarifications
-  }
+  } catch (e) { /* silent */ }
 }
 
 async function replyClarification(clarId) {
@@ -264,7 +550,7 @@ function escHtml(str) {
   return div.innerHTML;
 }
 
-// Keyboard shortcut: Ctrl/Cmd+Enter to submit note
+// Keyboard shortcuts
 document.getElementById('noteInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
