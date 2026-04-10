@@ -8,6 +8,7 @@ base_url = "http://localhost:11434"
 
 [providers.claude]
 api_key_env = "ANTHROPIC_API_KEY"
+api_key_file = "ANTHROPIC_API_KEY"
 
 [providers.openai]
 api_key_env = "OPENAI_API_KEY"

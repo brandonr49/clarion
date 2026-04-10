@@ -86,13 +86,24 @@ See `docs/design/harness-enforcement.md` for the design rationale.
 - [ ] Context narrowing
 - [ ] Brain reorganization jobs
 
-## Phase 4: Harness Hardening
+## Phase 4: Harness Hardening (IN PROGRESS)
 
-Focus: multi-step pipelines, deeper validation, self-improvement.
+**Implemented:**
+- [x] Pre-processing classifier (rule-based heuristics):
+  - Classifies notes by complexity: SIMPLE, STANDARD, COMPLEX
+  - Detects list additions, completions, UI actions, priming, novel topics
+  - Finds relevant brain areas by keyword-matching against the brain index
+  - Routes to appropriate model tier (FAST for simple, STANDARD for normal)
+- [x] Tier escalation on validation failure (FAST -> STANDARD on retry failure)
+- [x] 10 classifier unit tests
+- [x] Cloud model support: Claude API key from file or env var, gitignored
+- [x] Cloud model integration test (Claude Haiku)
+- [x] Scale tests (30-50 diverse notes through full pipeline)
+- [x] Brain database tools with access control (7 tools, 8 tests)
+- [x] Brain rebuild from raw with API endpoint
 
-- [ ] Multi-step pipelines (classify -> constrain -> process -> validate)
+**Remaining:**
 - [ ] Semantic validation (does the query response address the question?)
-- [ ] Tier escalation on failure (fast -> standard -> complex)
 - [ ] Harness telemetry (success rates per task type, model, prompt version)
 - [ ] A/B testing for prompt variants
 - [ ] LLM-created tools: sandbox, validation, versioning
@@ -130,6 +141,16 @@ Focus: the LLM becomes an active assistant, not just a passive filer.
 - [ ] Brain snapshot/versioning on timer
 - [ ] CLI client
 
+## Test Suite Summary
+
+| Suite | Tests | Time | Requires |
+|-------|-------|------|----------|
+| Unit tests | 103 | ~0.5s | Nothing |
+| E2E (Ollama) | 5 | ~3.5min | Ollama + qwen3:8b |
+| Scale test | 2 | ~15-30min | Ollama + qwen3:8b |
+| Cloud models | 3 | ~30s | ANTHROPIC_API_KEY |
+| Benchmark | 20 (4 models x 5) | ~5min | Ollama + all models |
+
 ## Running the Tests
 
 ```bash
@@ -139,14 +160,20 @@ make test-unit
 # E2E tests (requires Ollama running with qwen3:8b)
 make test-e2e
 
-# All tests
+# Scale tests (30-50 notes, slow)
+make test-scale
+
+# Cloud model tests (requires ANTHROPIC_API_KEY file or env var)
+make test-cloud
+
+# All tests except scale (reasonable CI time)
 make test
 
-# Use a different model for e2e tests
-OLLAMA_MODEL=llama3.1:8b make test-e2e
+# Benchmark all local models
+make benchmark
 
-# Benchmark all models (comprehensive comparison)
-.venv/bin/python tests/benchmark_models.py
+# Use a different model for e2e/scale tests
+OLLAMA_MODEL=qwen2.5:7b make test-e2e
 
 # Run the server
 make run

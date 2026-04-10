@@ -19,11 +19,20 @@ class ServerConfig:
 class ProviderConfig:
     base_url: str | None = None
     api_key_env: str | None = None
+    api_key_file: str | None = None  # path to file containing the key
 
     @property
     def api_key(self) -> str | None:
+        # Try env var first
         if self.api_key_env:
-            return os.environ.get(self.api_key_env)
+            key = os.environ.get(self.api_key_env)
+            if key:
+                return key.strip()
+        # Fall back to file
+        if self.api_key_file:
+            key_path = Path(self.api_key_file)
+            if key_path.exists():
+                return key_path.read_text().strip()
         return None
 
 
@@ -78,6 +87,7 @@ def load_config(path: str | Path = "clarion.toml") -> ClarionConfig:
         providers[name] = ProviderConfig(
             base_url=pconf.get("base_url"),
             api_key_env=pconf.get("api_key_env"),
+            api_key_file=pconf.get("api_key_file"),
         )
 
     routing_raw = raw.get("routing", {})

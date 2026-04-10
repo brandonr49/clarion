@@ -57,8 +57,22 @@ class Harness:
         self._prompts = prompts
 
     async def process_note(self, note: RawNote) -> HarnessResult:
-        """Process a new note: update the brain with validation and retry."""
-        provider = self._router.get_provider(Tier.STANDARD)
+        """Process a new note: classify, then update the brain with validation and retry."""
+        from clarion.harness.classifier import NoteClassifier
+
+        # Step 1: Classify the note
+        classifier = NoteClassifier(self._brain)
+        classification = classifier.classify(note)
+        logger.info(
+            "Note classified: tier=%s, complexity=%s, areas=%s (%s)",
+            classification.tier.value,
+            classification.complexity.value,
+            classification.relevant_brain_areas,
+            classification.notes,
+        )
+
+        # Step 2: Select provider based on classification
+        provider = self._router.get_provider(classification.tier)
         system_prompt = self._build_note_system_prompt(note)
         brain_index = self._brain.read_index() or "Brain index does not exist yet."
         user_content = self._format_note_task(note, brain_index)
@@ -103,10 +117,38 @@ class Harness:
                 [f"retry: {i}" for i in validation_retry.issues]
             )
             if not validation_retry.passed:
-                logger.warning(
-                    "Note processing retry also failed: %s",
-                    "; ".join(validation_retry.issues),
-                )
+                # Tier escalation: if we failed on a fast tier, try standard
+                if classification.tier == Tier.FAST:
+                    logger.warning(
+                        "Escalating from %s to STANDARD after retry failure",
+                        classification.tier.value,
+                    )
+                    escalated_provider = self._router.get_provider(Tier.STANDARD)
+                    state_before_esc = self._brain.snapshot_file_state()
+
+                    # Fresh messages for the escalated model
+                    esc_messages = [
+                        Message(role="system", content=system_prompt),
+                        Message(role="user", content=user_content),
+                    ]
+                    result = await self._agent_loop(
+                        escalated_provider, esc_messages, task_type="note_processing"
+                    )
+                    state_after_esc = self._brain.snapshot_file_state()
+                    validation_esc = self._validate_note_processing(
+                        result, state_before_esc, state_after_esc
+                    )
+                    result.validation_notes.append(
+                        f"escalated: {classification.tier.value} -> standard"
+                    )
+                    result.validation_notes.extend(
+                        [f"escalation: {i}" for i in validation_esc.issues]
+                    )
+                else:
+                    logger.warning(
+                        "Note processing retry also failed (no further escalation): %s",
+                        "; ".join(validation_retry.issues),
+                    )
         else:
             result.validation_notes.extend(validation.issues)
 
@@ -324,15 +366,21 @@ class Harness:
         reads_made = [t for t in tools_used if t in read_tools]
 
         if not reads_made and not self._brain.is_empty():
+            # Build a specific retry prompt listing available brain files
+            file_state = self._brain.snapshot_file_state()
+            file_list = ", ".join(sorted(file_state.keys())[:20])
+
             issues.append("no_brain_reads")
             return ValidationResult(
                 passed=False,
                 issues=issues,
                 retry_prompt=(
                     "You did not read any brain files before answering. "
-                    "You MUST call read_brain_file or search_brain to find the "
-                    "information before responding. Read the relevant files from "
-                    "the brain index, then answer the question."
+                    "You MUST call read_brain_file to read at least one file "
+                    "before responding. The brain contains these files: "
+                    f"{file_list}. "
+                    "Call read_brain_file with the path of the most relevant file, "
+                    "then answer the question based on what you find."
                 ),
             )
 
