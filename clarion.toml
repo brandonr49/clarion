@@ -17,6 +17,10 @@ api_key_env = "OPENAI_API_KEY"
 tier1 = "ollama:qwen3:8b"
 tier2 = "ollama:qwen3:8b"
 tier3 = "claude:claude-sonnet-4-20250514"
+# Available Claude models (as of April 2026):
+# claude-haiku-4-5-20251001 (cheapest, fastest)
+# claude-sonnet-4-20250514 (good balance)
+# claude-opus-4-20250514 (strongest reasoning)
 
 [worker]
 poll_interval = 1.0

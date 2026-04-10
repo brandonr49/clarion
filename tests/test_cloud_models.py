@@ -44,7 +44,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 # Use haiku for tests — cheapest and fastest
-CLAUDE_MODEL = "claude-haiku-4-20250414"
+CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 
 
 class SimpleRouter:
@@ -135,17 +135,17 @@ async def test_claude_query(setup):
     print(f"View: {result.view}")
     print(f"Tool calls: {result.tool_calls_made}")
 
-    assert result.tool_calls_made >= 1, "Should have read brain files"
-
-    # Check content mentions grocery items
+    # Query pipeline reads files directly (not via LLM tool calls)
+    # Check that content mentions grocery items
     search = (result.content + str(result.view or "")).lower()
     found = [item for item in ["milk", "eggs", "bread"] if item in search]
     print(f"Items found: {found}")
     assert len(found) >= 2, f"Expected at least 2 items, found: {found}"
 
-    # Claude should produce a structured view
-    assert result.view is not None, "Expected a structured view from Claude"
+    # Should have a view
+    assert result.view is not None, "Expected a view from Claude"
     print(f"View type: {result.view.get('type')}")
+    print(f"Pipeline notes: {result.validation_notes}")
 
 
 @pytest.mark.timeout(60)

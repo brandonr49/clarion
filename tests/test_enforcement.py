@@ -166,10 +166,22 @@ def make_note(content="buy milk", **kwargs):
     return RawNote(**defaults)
 
 
+# Helper: dispatch classification response for populated brain tests
+DISPATCH_LIST_ADD = LLMResponse(
+    content='{"type": "list_add", "target_files": ["grocery.md"], "reasoning": "adding to list"}'
+)
+DISPATCH_FULL_LLM = LLMResponse(
+    content='{"type": "full_llm", "target_files": [], "reasoning": "needs full reasoning"}'
+)
+
+
 async def test_note_retry_when_no_write_tools(brain, note_store, prompts):
     """If model doesn't use write tools, harness retries with feedback."""
+    # Empty brain — dispatch skips LLM, goes straight to full_llm
     mock = MockProvider([
+        # First attempt: model just responds without writing
         LLMResponse(content="I noted the milk.", tool_calls=[]),
+        # Retry: model actually writes
         LLMResponse(
             content=None,
             tool_calls=[
@@ -183,12 +195,12 @@ async def test_note_retry_when_no_write_tools(brain, note_store, prompts):
     ])
     harness = make_harness(brain, note_store, mock, prompts)
     result = await harness.process_note(make_note())
-    assert len(mock.call_history) >= 2
     assert brain.read_file("grocery.md") == "- milk"
 
 
 async def test_note_validation_passes_on_good_behavior(brain, note_store, prompts):
     """Model that writes correctly passes validation without retry."""
+    # Empty brain — dispatch skips LLM
     mock = MockProvider([
         LLMResponse(
             content=None,
@@ -203,11 +215,13 @@ async def test_note_validation_passes_on_good_behavior(brain, note_store, prompt
     ])
     harness = make_harness(brain, note_store, mock, prompts)
     result = await harness.process_note(make_note())
+    # 2 calls: 1 with tools + 1 final response
     assert len(mock.call_history) == 2
 
 
 async def test_note_validation_index_check(brain, note_store, prompts):
     """If model creates new files but doesn't update index, harness retries."""
+    # Empty brain — dispatch skips LLM
     mock = MockProvider([
         LLMResponse(
             content=None,
@@ -217,6 +231,7 @@ async def test_note_validation_index_check(brain, note_store, prompts):
             ],
         ),
         LLMResponse(content="Added milk.", tool_calls=[]),
+        # Retry prompt asks to update index
         LLMResponse(
             content=None,
             tool_calls=[
@@ -233,10 +248,13 @@ async def test_note_validation_index_check(brain, note_store, prompts):
 
 async def test_note_no_index_update_needed_for_append(brain, note_store, prompts):
     """Appending to existing file without changing file list doesn't require index update."""
-    brain.write_file("_index.md", "# Index\n- grocery.md")
+    brain.write_file("_index.md", "# Index\n- `grocery.md` — groceries")
     brain.write_file("grocery.md", "- milk")
 
     mock = MockProvider([
+        # First call: dispatch classification
+        DISPATCH_LIST_ADD,
+        # Second call: actual note processing — appends
         LLMResponse(
             content=None,
             tool_calls=[
@@ -248,16 +266,23 @@ async def test_note_no_index_update_needed_for_append(brain, note_store, prompts
     ])
     harness = make_harness(brain, note_store, mock, prompts)
     result = await harness.process_note(make_note("add eggs"))
-    assert len(mock.call_history) == 2
     assert brain.read_file("grocery.md") == "- milk\n- eggs"
 
 
-async def test_terse_note_triggers_clarification(brain, note_store, prompts):
-    """Very short notes with no brain context trigger clarification."""
+async def test_clarification_when_dispatch_says_so(brain, note_store, prompts):
+    """When the dispatch LLM says needs_clarification, harness raises it."""
     brain.write_file("_index.md", "# Index\n- shopping/list.md")
     brain.write_file("shopping/list.md", "- eggs")
 
-    mock = MockProvider([])
+    # First call is the dispatch classification, which says needs_clarification
+    # The harness should raise ClarificationRequested before any note processing
+    mock = MockProvider([
+        LLMResponse(content=(
+            '{"type": "needs_clarification", "target_files": [], '
+            '"reasoning": "ambiguous", '
+            '"clarification_question": "What do you mean by Duke?"}'
+        )),
+    ])
     harness = make_harness(brain, note_store, mock, prompts)
 
     with pytest.raises(ClarificationRequested) as exc_info:

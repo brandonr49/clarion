@@ -108,13 +108,19 @@ async def test_max_iterations_exceeded(brain, note_store, prompts):
         await harness.process_note(make_note())
 
 
-async def test_clarification_on_terse_unknown_note(brain, note_store, prompts):
-    """Terse notes with no brain context should trigger clarification."""
-    # Set up a non-empty brain so terse detection kicks in
+async def test_clarification_via_dispatch(brain, note_store, prompts):
+    """When dispatch LLM says needs_clarification, harness raises it."""
     brain.write_file("_index.md", "# Index\n- shopping/list.md")
     brain.write_file("shopping/list.md", "- eggs")
 
-    mock = MockProvider([])  # shouldn't even reach the LLM
+    mock = MockProvider([
+        # Dispatch classification says needs_clarification
+        LLMResponse(content=(
+            '{"type": "needs_clarification", "target_files": [], '
+            '"reasoning": "ambiguous", '
+            '"clarification_question": "What do you mean by Solar? Is this a project or something to buy?"}'
+        )),
+    ])
     harness = make_harness(brain, note_store, mock, prompts)
 
     with pytest.raises(ClarificationRequested) as exc_info:

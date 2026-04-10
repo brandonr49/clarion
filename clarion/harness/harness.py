@@ -60,7 +60,7 @@ class Harness:
         """Process a note: dispatch, then validate with retry and escalation."""
         from clarion.harness.dispatch import NoteDispatcher, DispatchType
 
-        # Step 1: Dispatch — determine processing strategy
+        # Step 1: Dispatch — fast LLM classifies the note
         dispatcher = NoteDispatcher(self._brain)
         dispatch = await dispatcher.dispatch(note, self._router)
         logger.info(
@@ -71,10 +71,14 @@ class Harness:
             dispatch.reasoning,
         )
 
-        # Step 2: Handle ambiguous notes — request clarification
+        # Step 2: Handle clarification requests
         if dispatch.needs_clarification:
             from clarion.brain.tools import ClarificationRequested
             raise ClarificationRequested(dispatch.clarification_question)
+
+        # Step 3: For fast-path types, the LLM still processes but with
+        # constrained context (target files hint in the prompt)
+        # Future: bespoke toolchains for each dispatch type
 
         # Step 3: Select provider and process
         provider = self._router.get_provider(dispatch.tier)
