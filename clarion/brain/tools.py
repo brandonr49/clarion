@@ -317,7 +317,7 @@ class SearchBrain(BrainTool):
 
     async def execute(self, arguments: dict) -> str:
         query = arguments.get("query", "")
-        max_results = arguments.get("max_results", 10)
+        max_results = int(arguments.get("max_results", 10))
         results = self._brain.search(query, max_results)
         if not results:
             return f"No results found for: {query}"

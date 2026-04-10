@@ -13,8 +13,8 @@ api_key_env = "ANTHROPIC_API_KEY"
 api_key_env = "OPENAI_API_KEY"
 
 [routing]
-tier1 = "ollama:llama3.2:3b"
-tier2 = "ollama:llama3.1:8b"
+tier1 = "ollama:qwen3:8b"
+tier2 = "ollama:qwen3:8b"
 tier3 = "claude:claude-sonnet-4-20250514"
 
 [worker]

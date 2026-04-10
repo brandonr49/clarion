@@ -24,10 +24,14 @@ class BrainManager:
 
     def resolve_path(self, path: str) -> Path:
         """Resolve a brain-relative path safely. Raises ValueError if path escapes root."""
+        if not path or path.strip() == "":
+            raise ValueError("Path cannot be empty")
         # Normalize and resolve
         resolved = (self._root / path).resolve()
         if not resolved.is_relative_to(self._root):
             raise ValueError(f"Path escapes brain root: {path}")
+        if resolved == self._root:
+            raise ValueError("Path cannot be the brain root directory")
         return resolved
 
     def is_empty(self) -> bool:

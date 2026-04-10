@@ -14,16 +14,32 @@ Phase 1 is fully implemented and tested:
 - Basic web UI (dark theme, note input, query box, clarification cards)
 - 58 tests (53 unit + 5 e2e with Ollama)
 
-### Key Observation from E2E Testing
+### Model Benchmark Results
 
-The 3B llama model is too small for reliable tool use. It often:
-- Puts content in its response text instead of using brain tools
-- Writes the brain index with prompt context mixed in
-- Uses request_clarification on queries instead of reading the brain
+Tested 4 models across 5 scenarios (bootstrap, two-note update, different topics,
+query, and priming) with optimized prompts:
 
-**Recommendation**: Use at least an 8B model (llama3.1:8b) for development,
-and a 70B+ or Claude Sonnet for production-quality brain organization.
-The harness architecture is sound — the model quality is the bottleneck.
+| Model | Pass Rate | Notes |
+|-------|-----------|-------|
+| **qwen3:8b** | **5/5 (100%)** | Best overall. Reliable tool use, creates proper file structure. |
+| qwen2.5:7b | 4/5 (80%) | Good at note processing, occasionally fails on priming. |
+| llama3.1:8b | 4/5 (80%) | Good at note processing, fails on queries (doesn't read brain). |
+| llama3.2:3b | 2/5 (40%) | Too small for reliable tool use. Not recommended. |
+
+**Recommendation**: Use **qwen3:8b** as the default local model. It's the only
+model that passes all scenarios including queries. For production-quality brain
+organization (reorganization, complex reasoning), use Claude Sonnet or larger.
+
+### Prompt Engineering Findings
+
+Key changes that improved all models:
+1. **"CRITICAL: You MUST use tools"** — explicit instruction that tools are mandatory, not optional
+2. **"Do NOT just describe what you would do"** — prevents models from narrating instead of acting
+3. **Step-by-step numbered instructions** — models follow ordered steps better than prose rules
+4. **Negative examples** — "the index is a map, not storage" prevents content-in-index mistakes
+5. **Query prompt forbids request_clarification** — prevents models from deflecting questions
+
+Prompts live in `clarion/prompts/` as markdown files and can be iterated without code changes.
 
 ## Phase 2: Query + Views
 
@@ -86,7 +102,7 @@ Focus: the LLM becomes an active assistant, not just a passive filer.
 # Unit tests only (fast, no LLM needed)
 make test-unit
 
-# E2E tests (requires Ollama running with a model)
+# E2E tests (requires Ollama running with qwen3:8b)
 make test-e2e
 
 # All tests
@@ -94,6 +110,9 @@ make test
 
 # Use a different model for e2e tests
 OLLAMA_MODEL=llama3.1:8b make test-e2e
+
+# Benchmark all models (comprehensive comparison)
+.venv/bin/python tests/benchmark_models.py
 
 # Run the server
 make run
