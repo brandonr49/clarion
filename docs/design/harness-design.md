@@ -233,10 +233,22 @@ class Tool(Protocol):
   - Returns: file contents as string
   - Fails gracefully if file doesn't exist
 
+- **`read_brain_file_section`**: Read a portion of a brain file.
+  - Args: `{"path": "projects/house.md", "start_line": 0, "num_lines": 50}`
+  - Returns: the requested line range
+  - Essential for large brain files — avoids loading entire files into context
+  - The LLM should prefer this over `read_brain_file` for files it knows are large
+
 - **`write_brain_file`**: Create or overwrite a brain file.
   - Args: `{"path": "groceries/shopping_list.md", "content": "..."}`
   - Creates parent directories as needed
   - Returns: confirmation string
+
+- **`edit_brain_file`**: Edit a specific section of a brain file.
+  - Args: `{"path": "groceries/shopping_list.md", "old_text": "...", "new_text": "..."}`
+  - Replaces the first occurrence of old_text with new_text
+  - Returns: confirmation string
+  - Avoids rewriting an entire file to change one line
 
 - **`append_brain_file`**: Append content to an existing brain file.
   - Args: `{"path": "groceries/shopping_list.md", "content": "\n- milk"}`
@@ -253,12 +265,57 @@ class Tool(Protocol):
 
 - **`list_brain_directory`**: List contents of a brain directory.
   - Args: `{"path": "groceries/"}`  (or `""` for root)
-  - Returns: list of files and subdirectories
+  - Returns: list of files and subdirectories with file sizes
 
-#### Brain Search
-- **`search_brain`**: Full-text search across all brain files.
+- **`get_brain_file_info`**: Get metadata about a brain file without reading it.
+  - Args: `{"path": "projects/house.md"}`
+  - Returns: size, line count, last modified, file type
+  - Lets the LLM decide whether to read the full file or a section
+
+#### Brain Database Operations
+The brain can contain SQLite databases for structured/tabular data. These tools
+provide CRUD access without the LLM needing to write raw SQL.
+
+- **`create_brain_db`**: Create a new SQLite database in the brain.
+  - Args: `{"path": "media/watchlist.db", "tables": {"movies": {"columns": [{"name": "title", "type": "text"}, {"name": "recommended_by", "type": "text"}, {"name": "rating", "type": "real"}, {"name": "watched", "type": "boolean"}]}}}`
+  - Returns: confirmation string
+
+- **`brain_db_insert`**: Insert a row into a brain database table.
+  - Args: `{"db_path": "media/watchlist.db", "table": "movies", "row": {"title": "Arrival", "recommended_by": "Sarah", "watched": false}}`
+  - Returns: confirmation with inserted row ID
+
+- **`brain_db_query`**: Query a brain database.
+  - Args: `{"db_path": "media/watchlist.db", "table": "movies", "where": {"watched": false}, "limit": 50}`
+  - Returns: matching rows as JSON
+  - Simple key=value filtering. For complex queries, the LLM can use `brain_db_raw_query`.
+
+- **`brain_db_update`**: Update rows in a brain database.
+  - Args: `{"db_path": "media/watchlist.db", "table": "movies", "where": {"title": "Arrival"}, "set": {"watched": true, "rating": 9.0}}`
+  - Returns: number of rows updated
+
+- **`brain_db_delete`**: Delete rows from a brain database.
+  - Args: `{"db_path": "media/watchlist.db", "table": "movies", "where": {"title": "Arrival"}}`
+  - Returns: number of rows deleted
+
+- **`brain_db_raw_query`**: Execute arbitrary read-only SQL on a brain database.
+  - Args: `{"db_path": "media/watchlist.db", "sql": "SELECT title, rating FROM movies WHERE watched = 1 ORDER BY rating DESC"}`
+  - Read-only: only SELECT statements allowed
+  - For cases where the simple query tool isn't expressive enough
+
+- **`brain_db_schema`**: Get the schema of a brain database.
+  - Args: `{"db_path": "media/watchlist.db"}`
+  - Returns: table names, column definitions, row counts
+
+#### Brain Search and Tags
+- **`search_brain`**: Full-text search across all brain files and databases.
   - Args: `{"query": "milk", "max_results": 10}`
-  - Returns: matching files with relevant snippets
+  - Returns: matching files with relevant snippets and line numbers
+  - Searches markdown content, JSON values, and database text columns
+
+- **`search_brain_by_tag`**: Find brain files by tag.
+  - Args: `{"tags": ["grocery", "recurring"], "match": "all"}`
+  - Returns: matching file paths and their tag sets
+  - Tags are stored in the brain index, maintained by the LLM
 
 #### Brain Index
 - **`read_brain_index`**: Read the brain's self-maintained index.
@@ -271,17 +328,59 @@ class Tool(Protocol):
   - Args: `{"content": "..."}`
   - Returns: confirmation string
 
+#### Tag System
+
+The brain index should maintain a tag/keyword system to enable fast lookup with
+minimal token usage. Tags are the LLM's own organizational tool — it assigns and
+maintains them as part of brain file management.
+
+The index might contain something like:
+```
+## Tags
+- grocery: shopping/grocery_list.md, daily/meal_planning.md
+- recurring: shopping/grocery_list.md, daily/chores.md
+- work: projects/work/current_sprint.md, projects/work/backlog.md
+- child: family/child_notes.md, shopping/kids_clothes.md
+- gift_ideas: family/gift_ideas.md
+- media: media/watchlist.db, media/books.md
+```
+
+This lets the LLM quickly find relevant files without reading them all. The tag
+assignments are the LLM's choice — we don't prescribe a taxonomy.
+
 #### Raw Note Access
 - **`query_raw_notes`**: Search raw note history.
   - Args: `{"query": "milk", "limit": 20, "since": "2026-01-01"}`
   - Returns: matching raw notes
 
-#### User Communication (Future — Education Mode)
-- **`send_user_message`**: Queue a message/question for the user.
-  - Args: `{"message": "Which store do you usually buy milk at?", "priority": "low"}`
-  - This is for async note processing — the LLM can't talk to the user
-    in real time during note processing, but it can queue follow-up questions
-  - Deferred until education mode is built
+#### User Communication
+- **`request_clarification`**: Pause processing and ask the user a question.
+  - Args: `{"question": "Which store do you usually buy milk at?", "note_id": "uuid"}`
+  - Pauses the current note processing
+  - The question is surfaced to the client
+  - Processing resumes when the user responds (see note-pipeline.md)
+  - Use sparingly — only when genuinely confused, not for every new topic
+
+### Format Evolution Guidance
+
+The system prompt should guide the LLM on when to use which storage format:
+
+```
+Storage format guidelines:
+- **Markdown files**: narratives, descriptions, context, plans, notes about concepts.
+  Good for information that is read as prose.
+- **JSON files**: small structured datasets, configuration-like data, entity records.
+  Good for information that has clear fields/attributes.
+- **SQLite databases**: collections of similar items (watchlists, habit logs, purchase
+  history, contact info). Good when you might want to query/filter/sort.
+
+Evolution: if you find a markdown file is becoming a long list of similar items,
+consider migrating it to a database. If a JSON file is getting complex narrative
+sections, consider splitting into markdown + JSON.
+
+Keep files small when possible. A brain file over 200 lines should probably be
+split into smaller, more focused files. This keeps context usage efficient.
+```
 
 ### LLM-Created Tools (Phase 3)
 

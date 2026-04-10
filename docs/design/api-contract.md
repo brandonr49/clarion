@@ -41,22 +41,24 @@ transcriptions, and UI interactions (checkbox clicks, dismissals, etc.) all ente
 }
 ```
 
-For UI interactions (e.g., checking off a grocery item), the client sends a structured
-note. The content is still human-readable text, but metadata carries the structured form:
+For UI interactions (e.g., checking off an item, dismissing a suggestion), the client
+sends a note with `input_method: "ui_action"`. The content should be human-readable
+text describing what happened. Metadata can carry structured hints, but keep it
+minimal — avoid inventing many specific action types. The LLM interprets the content.
 
 ```json
-// Request — UI interaction (checkbox)
+// Request — UI interaction (generic)
 {
     "content": "completed: buy milk",
     "source_client": "android",
     "input_method": "ui_action",
-    "metadata": {
-        "action": "complete",
-        "item": "buy milk",
-        "context": "grocery_list"
-    }
+    "metadata": {}
 }
 ```
+
+The content string is the source of truth. The LLM processes "completed: buy milk"
+the same way it would process a typed note "I bought milk." Metadata is for optional
+hints, not for defining a parallel type system.
 
 ```json
 // Response — 202 Accepted (async processing)
@@ -237,7 +239,34 @@ with the interaction as a structured note.
 
 ---
 
-### 7. Query with Streaming (Future)
+### 7. Pending Clarifications
+
+**`GET /clarifications`**
+
+List questions the LLM has asked while processing notes. The client should
+check this periodically or receive push notifications (Android).
+
+```json
+// Response
+{
+    "clarifications": [
+        {
+            "id": "clar-uuid",
+            "note_id": "original-note-uuid",
+            "question": "Which store do you usually buy milk at?",
+            "created_at": "2026-04-09T12:00:05Z"
+        }
+    ]
+}
+```
+
+User responds by submitting a normal `POST /notes` with
+`metadata.clarification_id` linking it to the question. See
+`note-pipeline.md` for full clarification flow.
+
+---
+
+### 8. Query with Streaming (Future)
 
 **`POST /query/stream`**
 
@@ -246,7 +275,7 @@ longer-running queries. Deferred until needed.
 
 ---
 
-### 8. System Status
+### 9. System Status
 
 **`GET /status`**
 
@@ -287,8 +316,22 @@ table        — rows and columns with optional headers
 key_value    — label: value pairs
 markdown     — rendered markdown with collapsible sections
 mermaid      — mermaid diagram source (client renders)
+chart        — data + chart type (bar, line, pie, etc.) for visualization
 composite    — ordered list of other views (for multi-part responses)
 ```
+
+### Chart View (Future)
+
+Charts and graphs open a large design space. Initial support should be minimal:
+the LLM returns data points + a chart type hint, the client renders with a charting
+library. Full specification deferred until we have data worth charting.
+
+### LLM-Generated Views (Future)
+
+The dream version: the LLM decides on the fly how to visualize data, potentially
+generating custom view layouts beyond the pre-built component set. For now, the
+pre-built types + markdown fallback cover our needs. As we discover limitations
+in the component library, we can open this up.
 
 ### Composite View
 

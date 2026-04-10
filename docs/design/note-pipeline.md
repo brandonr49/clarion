@@ -182,6 +182,83 @@ If single-worker becomes a bottleneck:
 
 ---
 
+## Clarification Queue
+
+Sometimes the LLM cannot fully process a note without more context. Rather than
+guessing, it should be able to pause processing and ask the user a question.
+
+### Flow
+
+```
+1. Note arrives, LLM starts processing
+2. LLM realizes it needs clarification
+3. LLM calls `request_clarification` tool with:
+   - The question to ask the user
+   - The note_id being processed
+4. Note status set to "awaiting_clarification"
+5. The question is surfaced to the client (via a pending clarifications endpoint
+   or push notification on Android)
+6. User responds (their response is a new note, linked to the original via metadata)
+7. Original note is re-queued with the clarification response appended as context
+8. LLM completes processing with the additional information
+```
+
+### API Addition
+
+**`GET /clarifications`** — list pending clarification requests
+
+```json
+{
+    "clarifications": [
+        {
+            "id": "clar-uuid",
+            "note_id": "original-note-uuid",
+            "question": "Which store do you usually buy milk at?",
+            "created_at": "2026-04-09T12:00:05Z"
+        }
+    ]
+}
+```
+
+The user responds by submitting a normal note via `POST /notes` with metadata
+linking it to the clarification:
+
+```json
+{
+    "content": "I buy milk at Costco usually, or Ralphs if I need it quick",
+    "source_client": "web",
+    "input_method": "typed",
+    "metadata": {
+        "clarification_id": "clar-uuid"
+    }
+}
+```
+
+This response note is stored as raw (like any note), AND triggers reprocessing
+of the original paused note with the clarification context included.
+
+### Design Notes
+- Clarification is NOT education mode (that's proactive). This is reactive —
+  the LLM is confused about a specific note and needs help.
+- The user is never required to respond. Unanswered clarifications can time out
+  and the LLM processes the note with its best guess.
+- Clarifications should be rare in early versions and more common as the LLM
+  becomes more sophisticated about what it doesn't know.
+
+---
+
+## String Encoding Safety
+
+All text content stored in SQLite must be properly handled:
+- UTF-8 encoding throughout (SQLite default)
+- Special characters (emoji, CJK, combining characters, etc.) stored as-is
+- No escaping or sanitization of content at the storage layer — raw text in, raw text out
+- SQL injection prevention via parameterized queries only (never string interpolation)
+- Content is TEXT type in SQLite, which handles arbitrary Unicode
+- Validate that content is valid UTF-8 on ingestion; reject with 400 if not
+
+---
+
 ## Query Pipeline (Separate from Note Processing)
 
 Queries (`POST /query`) are synchronous and bypass the queue:
