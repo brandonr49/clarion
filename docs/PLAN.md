@@ -9,7 +9,7 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 | D1 | Server Language | Python (FastAPI). Harness-first architecture. |
 | D2 | Client Strategy | Web UI scaffold first, Android native app is the real primary client. |
 | D3 | Raw Note Persistence | SQLite. Effectively immutable with logged escape hatch. |
-| D4 | LLM Provider | Multi-provider (Ollama, Claude, OpenAI). Model routing by task complexity. Self-modifying tool library. |
+| D4 | LLM Provider | Multi-provider (Ollama, Claude, OpenAI). Model routing by task complexity. |
 | D5 | Middleware Brain | LLM-autonomous mixed-format workspace (md, json, sqlite). Rebuildable from raw. |
 | D6 | View System | Hybrid pre-built + LLM-generated views. Interactions flow as notes. |
 
@@ -17,64 +17,68 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 
 ## Phases
 
-### Phase 0: Foundation (Current)
-- [x] Resolve all open decisions (D1-D6)
-- [ ] Define the API contract (client <-> server)
-- [ ] Define the harness tool interface
-- [ ] Define the brain bootstrap process (how does the LLM start from nothing?)
-- [ ] Set up project structure and tooling (Python project, deps, linting)
+### Phase 1: Scaffold + Harness Core ✅
+- [x] Python project skeleton (FastAPI, SQLite, async worker)
+- [x] Raw note ingestion API (POST, GET, PUT, status, clarifications)
+- [x] SQLite raw note storage with full CRUD
+- [x] Basic web UI (text box + submit + note list + query)
+- [x] LLM harness: provider abstraction (Ollama, Claude, OpenAI, Mock)
+- [x] LLM harness: tool-use agent loop
+- [x] Built-in tool set (14 brain tools)
+- [x] Processing pipeline: note -> queue -> LLM -> brain update
+- [x] Brain bootstrap from empty state
 
-### Phase 1: Scaffold + Harness Core
-The goal is to get the LLM processing notes as fast as possible. Everything else
-is minimal scaffolding to support that.
+### Phase 2: Query + Views ✅
+- [x] Improved system prompts (mandatory tool use, structured views)
+- [x] View type system (checklist, table, key_value, markdown, mermaid, composite)
+- [x] View parser (extract JSON from LLM responses)
+- [x] Client-side view renderers with interactive checkboxes
+- [x] Client type awareness ({source_client} in prompts)
+- [x] Model benchmarking (qwen3:8b and qwen2.5:7b at 100%)
 
-- [ ] Python project skeleton (FastAPI, SQLite, async task queue)
-- [ ] Raw note ingestion API (POST a note, get ack)
-- [ ] SQLite raw note storage
-- [ ] Basic web UI (text box + submit + note list)
-- [ ] LLM harness: provider abstraction (Ollama + Claude API)
-- [ ] LLM harness: tool-use agent loop
-- [ ] Built-in tool set (read/write/list/search brain files, query raw notes)
-- [ ] Processing pipeline: note arrives -> queued -> LLM processes -> brain updated
-- [ ] Brain bootstrap: LLM starts from empty brain, builds structure from first notes
+### Phase 3: Harness Enforcement ✅
+- [x] Tool filtering by task type (queries get read-only tools only)
+- [x] Double-layer enforcement (hidden from LLM + blocked at execution)
+- [x] Post-processing validation (must-write, must-read, index consistency)
+- [x] Auto-retry on validation failure with specific feedback
+- [x] Auto-wrap raw text in markdown view fallback
+- [x] Brain database tools (7 CRUD tools with schema versioning)
+- [x] Brain rebuild from raw with snapshot + API endpoint
 
-### Phase 2: Query + Views
-- [ ] Query API (user asks question, LLM reads brain, returns answer)
-- [ ] View component library (markdown, checklist, key-value, table, mermaid)
-- [ ] LLM view generation (query -> structured view response)
-- [ ] Client-side view rendering
-- [ ] Client type awareness (phone vs desktop)
+### Phase 4: Harness Hardening (IN PROGRESS)
+- [x] Note dispatch system (LIST_ADD, LIST_REMOVE, AMBIGUOUS, FULL_LLM)
+- [x] Ambiguity detection (terse notes trigger clarification)
+- [x] Multi-step query pipeline (classify -> read -> answer -> broaden -> not found)
+- [x] Pre-processing classifier (rule-based heuristics)
+- [x] Tier escalation on failure (FAST -> STANDARD)
+- [x] Cloud model support (Claude API key from file, gitignored)
+- [x] Scale tests (30-50 notes, real-world note fixtures)
+- [x] Database schema versioning (_schema_meta table)
+- [ ] Bespoke fast-path toolchains (tight execution for list_add, list_remove)
+- [ ] Semantic validation (does query response address the question?)
+- [ ] Harness telemetry (success rates per task type, model, prompt)
+- [ ] Brain reorganization jobs (periodic large-model structure review)
 
-### Phase 3: Model Routing + Tool Evolution
-- [ ] Model tier routing (fast/cheap vs strong reasoning)
-- [ ] Triage logic: which notes need which model tier
-- [ ] LLM-created tools: sandbox, validation, versioning
-- [ ] Brain reorganization jobs (periodic large-model review)
-- [ ] Brain rebuild from raw capability
-
-### Phase 4: Android App
+### Phase 5: Android App
 - [ ] Native Android app (Kotlin + Jetpack Compose)
 - [ ] Fast text input (open -> type -> submit)
-- [ ] Local voice-to-text (on-device model, no network for STT)
-- [ ] Home screen widget: quick note input
-- [ ] Home screen widget: dashboard view
-- [ ] Push notifications
-- [ ] View rendering on phone form factor
+- [ ] Local voice-to-text (on-device model)
+- [ ] Home screen widgets (input + dashboard)
+- [ ] Push notifications for clarifications
 
-### Phase 5: Education Mode + Proactive Assistant
+### Phase 6: Education Mode + Proactive Assistant
 - [ ] LLM follow-up questions on new notes
-- [ ] Interaction log storage
-- [ ] Pattern detection (periodic analysis of note/query history)
-- [ ] Proactive suggestions and insights
-- [ ] Cross-domain reasoning (cooking impacts groceries, etc.)
+- [ ] Pattern detection (analyze note/query history)
+- [ ] Cross-domain reasoning
+- [ ] LLM-created tools (sandbox, validation, versioning)
+- [ ] LLM-scheduled cron jobs
 
-### Phase 6: Polish
+### Phase 7: Polish
 - [ ] Smart view caching
 - [ ] Persistent dashboards
 - [ ] Desktop PWA or native wrapper
-- [ ] Multi-user support (2 users, lightweight auth)
-- [ ] File attachment support
-- [ ] Brain snapshot/versioning on timer
+- [ ] Multi-user support (2 users)
+- [ ] File attachments (raw:// links in brain files)
 - [ ] CLI client
 
 ---
@@ -83,10 +87,10 @@ is minimal scaffolding to support that.
 
 1. **The brain is rebuildable** — raw notes are the source of truth, the brain is derived
 2. **The LLM is the organizer, not the user** — users dump thoughts, the LLM structures them
-3. **Interactions are notes** — UI actions (checking a box) flow through the system as raw input
+3. **Interactions are notes** — UI actions flow through the system as raw input
 4. **Safe by construction** — make invalid states unrepresentable, don't rely on runtime checks
-5. **Harness first, scaffold everything else** — the LLM tool loop is the core; server/client are plumbing
-6. **Start minimal, grow from observed need** — don't build components until usage proves they're needed
-7. **Self-hosted, self-contained** — no cloud dependency for core function
-8. **The LLM owns the brain** — taxonomy, format, organization are the LLM's decisions, not ours
-9. **Feed the model everything** — the more context the assistant has, the more useful it becomes
+5. **Harness first, scaffold everything else** — the LLM tool loop is the core
+6. **Enforce in code, not prompts** — prompts suggest, code enforces. Tool filtering, validation, retry
+7. **Dispatch to fast paths** — common operations get bespoke toolchains, big thinking for novel input
+8. **Feed the model everything** — more context = better assistance
+9. **The LLM owns the brain** — taxonomy, format, organization are the LLM's decisions

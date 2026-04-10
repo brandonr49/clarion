@@ -97,10 +97,34 @@ class CreateBrainDb(BrainDbTool):
     async def execute(self, arguments: dict) -> str:
         db_path = arguments.get("db_path", "")
         tables = arguments.get("tables", {})
+        description = arguments.get("description", "")
 
         try:
             conn = self._connect(db_path)
             try:
+                # Create schema meta table for versioning
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS _schema_meta (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    )
+                """)
+                import datetime
+                conn.execute(
+                    "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
+                    ("version", "1"),
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
+                    ("created_at", datetime.datetime.now(datetime.timezone.utc).isoformat()),
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
+                    ("description", description or f"Database with tables: {list(tables.keys())}"),
+                )
+
+                # Build schema description for meta
+                schema_desc = {}
                 for table_name, table_def in tables.items():
                     columns = table_def.get("columns", [])
                     col_defs = ", ".join(
@@ -108,10 +132,18 @@ class CreateBrainDb(BrainDbTool):
                     )
                     sql = f'CREATE TABLE IF NOT EXISTS "{table_name}" (id INTEGER PRIMARY KEY AUTOINCREMENT, {col_defs})'
                     conn.execute(sql)
+                    schema_desc[table_name] = [
+                        {"name": c["name"], "type": c.get("type", "TEXT")} for c in columns
+                    ]
+
+                conn.execute(
+                    "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
+                    ("schema", json.dumps(schema_desc)),
+                )
                 conn.commit()
             finally:
                 conn.close()
-            return f"Created database {db_path} with tables: {list(tables.keys())}"
+            return f"Created database {db_path} v1 with tables: {list(tables.keys())}"
         except Exception as e:
             return f"Error creating database: {e}"
 
@@ -303,16 +335,32 @@ class BrainDbSchema(BrainDbTool):
 
             conn = self._connect(db_path)
             try:
+                # Get schema version info
+                meta = {}
+                try:
+                    meta_rows = conn.execute("SELECT key, value FROM _schema_meta").fetchall()
+                    meta = {r["key"]: r["value"] for r in meta_rows}
+                except Exception:
+                    pass  # no _schema_meta table
+
                 cursor = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name NOT LIKE 'sqlite_%' AND name != '_schema_meta'"
                 )
                 tables = [row["name"] for row in cursor.fetchall()]
 
-                schema = {}
+                schema = {
+                    "_meta": {
+                        "version": meta.get("version", "unknown"),
+                        "created_at": meta.get("created_at", "unknown"),
+                        "description": meta.get("description", ""),
+                    },
+                    "tables": {},
+                }
                 for table in tables:
                     cols = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
                     count = conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
-                    schema[table] = {
+                    schema["tables"][table] = {
                         "columns": [
                             {"name": c["name"], "type": c["type"]} for c in cols
                         ],

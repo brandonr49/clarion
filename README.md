@@ -2,37 +2,54 @@
 
 *Bringing structure, clarity, and order to the chaos of thought.*
 
-Clarion is a self-hosted note-taking system that uses LLM intelligence to transform unstructured input (notes, voice memos, ideas, todos) into a well-organized, queryable knowledge base. Users capture raw thoughts through lightweight clients; the server persists them and an LLM continuously maintains a structured "middleware brain" — a living summary that can be queried and viewed dynamically.
+Clarion is a self-hosted personal AI assistant with persistent memory. Users capture unstructured thoughts (notes, voice memos, ideas, todos) through lightweight clients; the server persists them and an LLM continuously maintains a structured "brain" — a living knowledge base that can be queried and viewed dynamically.
 
-## Architecture Overview
+## Architecture
 
 ```
- Clients                    Server                     Views
-┌──────────┐           ┌──────────────┐           ┌──────────────┐
-│ Android  │──────────▶│              │           │              │
-│ Mac      │  notes,   │  Raw Store   │           │  Dynamic     │
-│ Linux    │  voice,   │  (write-once)│           │  Views       │
-│ (web?)   │  files    │       │      │◀─────────▶│  (LLM-gen)   │
-└──────────┘           │       ▼      │  queries  │              │
-                       │  LLM Engine  │           └──────────────┘
-                       │       │      │
-                       │       ▼      │
-                       │  Middleware   │
-                       │  Brain (md)  │
-                       └──────────────┘
+ Clients                    Server                        Brain
+┌──────────┐           ┌──────────────────┐          ┌──────────────┐
+│ Android  │──────────▶│  Note Ingestion   │          │  Markdown    │
+│ Web UI   │  notes    │  (POST /notes)    │          │  JSON files  │
+│ CLI      │           │       │           │          │  SQLite DBs  │
+└──────────┘           │       ▼           │          │              │
+                       │  Dispatch System  │          │  (LLM-       │
+┌──────────┐           │  ┌─────┬──────┐   │          │   organized) │
+│ Queries  │──────────▶│  │Fast │ Full │   │─────────▶│              │
+│ Views    │◀──────────│  │Path │ LLM  │   │          └──────────────┘
+└──────────┘           │  └─────┴──────┘   │
+                       │       │           │
+                       │  Query Pipeline   │
+                       │  (classify→read→  │
+                       │   answer→fallback)│
+                       └──────────────────┘
 ```
 
-### Core Concepts
+## Quick Start
 
-- **Raw Notes**: Write-once, immutable entries. The ground truth. Text, voice transcriptions, files.
-- **Middleware Brain**: A set of LLM-maintained documents (markdown) that represent the structured, current state of the user's knowledge. Continuously updated as new raw notes arrive.
-- **Dynamic Views**: On-demand, LLM-generated presentations of middleware data. Pre-built view templates (checklists, tables, timelines, etc.) that the LLM can instantiate and populate.
+```bash
+# Install
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+
+# Configure (edit clarion.toml for your setup)
+# Default: Ollama with qwen3:8b
+
+# Run
+make run
+# Open http://localhost:8080
+
+# Test
+make test-unit    # 114 unit tests, ~0.4s
+make test-e2e     # 5 e2e tests with Ollama, ~3.5min
+make test-scale   # scale test with 30+ notes, ~15min
+```
 
 ## Project Status
 
-**Phase: Planning & Decision-Making**
+**Phase 4 of 7** — Harness Hardening (in progress)
 
-See [docs/PLAN.md](docs/PLAN.md) for the current project plan and open decisions.
+See [docs/PLAN.md](docs/PLAN.md) for the full roadmap and [docs/NEXT.md](docs/NEXT.md) for current status.
 
 ## Name
 

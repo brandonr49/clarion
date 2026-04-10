@@ -130,9 +130,10 @@ async def test_schema(brain):
     schema_tool = BrainDbSchema(brain)
     result = await schema_tool.execute({"db_path": "test.db"})
     schema = json.loads(result)
-    assert "movies" in schema
-    assert "books" in schema
-    assert schema["movies"]["row_count"] == 0
+    assert "movies" in schema["tables"]
+    assert "books" in schema["tables"]
+    assert schema["tables"]["movies"]["row_count"] == 0
+    assert schema["_meta"]["version"] == "1"
 
 
 async def test_raw_query(brain):
