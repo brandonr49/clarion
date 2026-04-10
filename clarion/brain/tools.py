@@ -483,6 +483,10 @@ def register_all_tools(
     for tool in tools:
         registry.register(tool)
 
+    # Brain database tools
+    from clarion.brain.db_tools import register_db_tools
+    register_db_tools(registry, brain)
+
 
 # Avoid circular import — ToolRegistry imported at call time
 if TYPE_CHECKING:

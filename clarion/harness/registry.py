@@ -1,4 +1,4 @@
-"""Tool registry — manages built-in and LLM-created tools."""
+"""Tool registry — manages built-in and LLM-created tools with access control."""
 
 from __future__ import annotations
 
@@ -23,6 +23,49 @@ class Tool(Protocol):
     async def execute(self, arguments: dict) -> str: ...
 
 
+# Tool categories for access control
+READ_TOOLS = frozenset({
+    "read_brain_file",
+    "read_brain_file_section",
+    "list_brain_directory",
+    "get_brain_file_info",
+    "search_brain",
+    "read_brain_index",
+    "query_raw_notes",
+})
+
+WRITE_TOOLS = frozenset({
+    "write_brain_file",
+    "edit_brain_file",
+    "append_brain_file",
+    "delete_brain_file",
+    "move_brain_file",
+    "update_brain_index",
+    "create_brain_db",
+    "brain_db_insert",
+    "brain_db_update",
+    "brain_db_delete",
+})
+
+DB_READ_TOOLS = frozenset({
+    "brain_db_query",
+    "brain_db_schema",
+    "brain_db_raw_query",
+})
+
+CLARIFICATION_TOOLS = frozenset({
+    "request_clarification",
+})
+
+# Task type -> allowed tool sets
+TASK_TOOL_ACCESS = {
+    "note_processing": READ_TOOLS | DB_READ_TOOLS | WRITE_TOOLS | CLARIFICATION_TOOLS,
+    "query": READ_TOOLS | DB_READ_TOOLS,  # NO write, NO clarification
+    "priming": READ_TOOLS | DB_READ_TOOLS | WRITE_TOOLS | CLARIFICATION_TOOLS,
+    "brain_maintenance": READ_TOOLS | DB_READ_TOOLS | WRITE_TOOLS,
+}
+
+
 class ToolRegistry:
     """Manages tool registration and execution with timeout enforcement."""
 
@@ -35,12 +78,45 @@ class ToolRegistry:
         self._tools[tool.name] = tool
         logger.debug("Registered tool: %s", tool.name)
 
-    def get_tool_definitions(self) -> list[ToolDef]:
-        """Return all tool definitions for the LLM."""
-        return [tool.definition for tool in self._tools.values()]
+    def get_tool_definitions(self, task_type: str | None = None) -> list[ToolDef]:
+        """Return tool definitions, optionally filtered by task type.
 
-    async def execute(self, name: str, arguments: dict) -> str:
-        """Execute a tool by name. Returns result string or error string."""
+        If task_type is provided, only tools allowed for that task type are returned.
+        The LLM never sees tools it's not allowed to call.
+        """
+        if task_type is None:
+            return [tool.definition for tool in self._tools.values()]
+
+        allowed = TASK_TOOL_ACCESS.get(task_type)
+        if allowed is None:
+            logger.warning("Unknown task type '%s', returning all tools", task_type)
+            return [tool.definition for tool in self._tools.values()]
+
+        return [
+            tool.definition
+            for tool in self._tools.values()
+            if tool.name in allowed
+        ]
+
+    async def execute(
+        self, name: str, arguments: dict, task_type: str | None = None
+    ) -> str:
+        """Execute a tool by name. Returns result string or error string.
+
+        If task_type is provided, rejects tools not allowed for that task type.
+        This is a second layer of enforcement — even if the LLM somehow names
+        a tool it wasn't given, execution is blocked.
+        """
+        # Enforce access control
+        if task_type is not None:
+            allowed = TASK_TOOL_ACCESS.get(task_type)
+            if allowed is not None and name not in allowed:
+                logger.warning(
+                    "Tool '%s' blocked: not allowed for task type '%s'",
+                    name, task_type,
+                )
+                return f"Error: tool '{name}' is not available for this operation."
+
         tool = self._tools.get(name)
         if tool is None:
             return f"Error: unknown tool '{name}'"

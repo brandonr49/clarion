@@ -39,17 +39,20 @@ def prompts():
     return load_prompts(prompts_dir)
 
 
+class SimpleRouter:
+    def __init__(self, provider):
+        self._provider = provider
+
+    def get_provider(self, tier):
+        return self._provider
+
+
 def make_harness(brain, note_store, mock_provider, prompts):
     registry = ToolRegistry(tool_timeout=10.0)
     register_all_tools(registry, brain, note_store)
-
-    # Create a simple router that always returns the mock provider
-    class SimpleRouter:
-        def get_provider(self, tier):
-            return mock_provider
-
+    router = SimpleRouter(mock_provider)
     config = HarnessConfig(max_iterations=10, tool_timeout=10, max_note_size=102400)
-    return Harness(SimpleRouter(), registry, brain, config, prompts)
+    return Harness(router, registry, brain, config, prompts)
 
 
 def make_note(**kwargs) -> RawNote:
@@ -67,24 +70,10 @@ def make_note(**kwargs) -> RawNote:
     return RawNote(**defaults)
 
 
-async def test_simple_note_processing(brain, note_store, prompts):
-    """LLM processes a note without tool calls — just returns text."""
-    mock = MockProvider([
-        LLMResponse(content="Added milk to grocery list.", tool_calls=[]),
-    ])
-    harness = make_harness(brain, note_store, mock, prompts)
-    note = make_note()
-
-    result = await harness.process_note(note)
-    assert result.content == "Added milk to grocery list."
-    assert result.tool_calls_made == 0
-    assert len(mock.call_history) == 1
-
-
 async def test_note_with_tool_calls(brain, note_store, prompts):
     """LLM uses tools to update the brain."""
     mock = MockProvider([
-        # First call: LLM wants to write a file
+        # First call: LLM wants to write files
         LLMResponse(
             content=None,
             tool_calls=[
@@ -140,6 +129,9 @@ async def test_query_brain(brain, note_store, prompts):
     result = await harness.handle_query("what's on my grocery list?", "web")
     assert "milk" in result.content
     assert "eggs" in result.content
+    # Should have auto-wrapped in markdown view since no JSON view block
+    assert result.view is not None
+    assert result.view["type"] == "markdown"
 
 
 async def test_max_iterations_exceeded(brain, note_store, prompts):
@@ -193,19 +185,39 @@ async def test_unknown_tool(brain, note_store, prompts):
                 ToolCall(id="tc1", name="nonexistent_tool", arguments={}),
             ],
         ),
-        LLMResponse(content="I encountered an error.", tool_calls=[]),
+        # After getting error, model writes properly
+        LLMResponse(
+            content=None,
+            tool_calls=[
+                ToolCall(id="tc2", name="write_brain_file",
+                         arguments={"path": "_index.md", "content": "# Index"}),
+                ToolCall(id="tc3", name="write_brain_file",
+                         arguments={"path": "note.md", "content": "buy milk"}),
+            ],
+        ),
+        LLMResponse(content="Done.", tool_calls=[]),
     ])
     harness = make_harness(brain, note_store, mock, prompts)
     note = make_note()
 
     result = await harness.process_note(note)
-    # The harness should still complete — the error is returned to the LLM as a tool result
-    assert result.content == "I encountered an error."
+    # The harness should still complete
+    assert result.content == "Done."
 
 
 async def test_bootstrap_prompt_on_empty_brain(brain, note_store, prompts):
     """When brain is empty, the bootstrap prompt is included."""
     mock = MockProvider([
+        # Model writes properly on first try
+        LLMResponse(
+            content=None,
+            tool_calls=[
+                ToolCall(id="tc1", name="write_brain_file",
+                         arguments={"path": "_index.md", "content": "# Index\n- note.md"}),
+                ToolCall(id="tc2", name="write_brain_file",
+                         arguments={"path": "note.md", "content": "buy milk"}),
+            ],
+        ),
         LLMResponse(content="Initialized brain.", tool_calls=[]),
     ])
     harness = make_harness(brain, note_store, mock, prompts)
@@ -222,6 +234,15 @@ async def test_bootstrap_prompt_on_empty_brain(brain, note_store, prompts):
 async def test_priming_prompt(brain, note_store, prompts):
     """Priming notes get the priming prompt addition."""
     mock = MockProvider([
+        LLMResponse(
+            content=None,
+            tool_calls=[
+                ToolCall(id="tc1", name="write_brain_file",
+                         arguments={"path": "_index.md", "content": "# Index\n- profile.md"}),
+                ToolCall(id="tc2", name="write_brain_file",
+                         arguments={"path": "profile.md", "content": "User priming data"}),
+            ],
+        ),
         LLMResponse(content="Set up user profile.", tool_calls=[]),
     ])
     harness = make_harness(brain, note_store, mock, prompts)

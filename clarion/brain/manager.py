@@ -173,6 +173,36 @@ class BrainManager:
 
         return results
 
+    def snapshot_file_state(self) -> dict[str, float]:
+        """Return a dict of {relative_path: mtime} for all files in the brain.
+
+        Used by the harness to detect what changed between before/after an operation.
+        """
+        state = {}
+        for root, _dirs, files in os.walk(self._root):
+            for fname in files:
+                filepath = Path(root) / fname
+                rel = str(filepath.relative_to(self._root))
+                state[rel] = filepath.stat().st_mtime
+        return state
+
+    def diff_file_state(
+        self, before: dict[str, float], after: dict[str, float]
+    ) -> tuple[set[str], set[str], set[str]]:
+        """Compare two file state snapshots.
+
+        Returns (added, removed, modified) sets of relative paths.
+        """
+        before_keys = set(before.keys())
+        after_keys = set(after.keys())
+        added = after_keys - before_keys
+        removed = before_keys - after_keys
+        modified = {
+            k for k in before_keys & after_keys
+            if before[k] != after[k]
+        }
+        return added, removed, modified
+
     def clear(self) -> None:
         """Remove all brain contents. Used for brain rebuild."""
         import shutil

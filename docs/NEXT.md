@@ -54,31 +54,37 @@ Prompts live in `clarion/prompts/` as markdown files and can be iterated without
 - [x] 17 new unit tests for view parsing and types
 - [x] Updated benchmark confirms qwen2.5:7b and qwen3:8b both at 100%
 
-## Phase 3: Harness Enforcement + Model Routing
+## Phase 3: Harness Enforcement + Model Routing (COMPLETE)
 
-Focus: make the harness enforce constraints in code, not just prompts. Add model routing.
-
-See `docs/design/harness-enforcement.md` for the full design.
+See `docs/design/harness-enforcement.md` for the design rationale.
 
 **Harness enforcement (code-level):**
-- [ ] Tool filtering by task type (queries get read-only tools, no write/clarification)
-- [ ] Post-processing validation (did the model use tools? did the brain change?)
-- [ ] Auto-retry on validation failure (retry with stronger prompt, then escalate tier)
-- [ ] Auto-wrap raw text in markdown view when no structured view extracted
-- [ ] Behavioral contracts per task type (note must write, query must read, etc.)
+- [x] Tool filtering by task type — queries get read-only tools only, write/clarification tools hidden
+- [x] Double-layer enforcement — tools filtered from LLM view AND blocked at execution time
+- [x] Post-processing validation:
+  - Note processing: must use write tools, brain must change, index must update if files added/removed
+  - Queries: must read brain files (skipped on empty brain)
+  - Appending to existing files correctly does NOT require index update
+- [x] Auto-retry on validation failure (one retry with specific feedback prompt)
+- [x] Auto-wrap raw text in markdown view when no structured view extracted
+- [x] 16 new enforcement unit tests
 
-**Model routing:**
-- [ ] Pre-processing classification (fast model or heuristics decide tier + brain areas)
-- [ ] Model tier routing (fast/cheap for simple notes, strong for complex)
-- [ ] Context narrowing (only load relevant brain areas based on classification)
-
-**Brain database tools:**
-- [ ] create_brain_db, brain_db_insert, brain_db_query, brain_db_update, brain_db_delete
-- [ ] brain_db_schema, brain_db_raw_query (read-only SQL)
+**Brain database tools (7 tools):**
+- [x] create_brain_db, brain_db_insert, brain_db_query, brain_db_update, brain_db_delete
+- [x] brain_db_schema, brain_db_raw_query (read-only SQL, blocks non-SELECT)
+- [x] Access control: db write tools excluded from query task type
+- [x] 8 new database tool tests
 
 **Brain maintenance:**
-- [ ] Brain rebuild from raw capability
-- [ ] Brain reorganization jobs (periodic large-model review)
+- [x] Brain rebuild from raw (with snapshot before clear)
+- [x] POST /brain/rebuild API endpoint
+- [x] Brain file state snapshots (before/after diff for validation)
+
+**Deferred to Phase 4:**
+- [ ] Pre-processing classification (fast model triage)
+- [ ] Model tier routing by complexity
+- [ ] Context narrowing
+- [ ] Brain reorganization jobs
 
 ## Phase 4: Harness Hardening
 

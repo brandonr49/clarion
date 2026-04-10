@@ -39,7 +39,7 @@ async def test_status(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
-    assert data["version"] == "0.1.0"
+    assert data["version"] == "0.2.0"
 
 
 async def test_create_note(client: AsyncClient):
