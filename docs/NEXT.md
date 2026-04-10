@@ -54,18 +54,45 @@ Prompts live in `clarion/prompts/` as markdown files and can be iterated without
 - [x] 17 new unit tests for view parsing and types
 - [x] Updated benchmark confirms qwen2.5:7b and qwen3:8b both at 100%
 
-## Phase 3: Model Routing + Tool Evolution
+## Phase 3: Harness Enforcement + Model Routing
 
-Focus: use the right model for the right task.
+Focus: make the harness enforce constraints in code, not just prompts. Add model routing.
 
+See `docs/design/harness-enforcement.md` for the full design.
+
+**Harness enforcement (code-level):**
+- [ ] Tool filtering by task type (queries get read-only tools, no write/clarification)
+- [ ] Post-processing validation (did the model use tools? did the brain change?)
+- [ ] Auto-retry on validation failure (retry with stronger prompt, then escalate tier)
+- [ ] Auto-wrap raw text in markdown view when no structured view extracted
+- [ ] Behavioral contracts per task type (note must write, query must read, etc.)
+
+**Model routing:**
+- [ ] Pre-processing classification (fast model or heuristics decide tier + brain areas)
 - [ ] Model tier routing (fast/cheap for simple notes, strong for complex)
-- [ ] Triage logic: which notes need which model tier
-- [ ] LLM-created tools: sandbox, validation, versioning
-- [ ] Brain reorganization jobs (periodic large-model review)
-- [ ] Brain rebuild from raw capability
-- [ ] Brain database tools (create_brain_db, brain_db_insert, etc.)
+- [ ] Context narrowing (only load relevant brain areas based on classification)
 
-## Phase 4: Android App
+**Brain database tools:**
+- [ ] create_brain_db, brain_db_insert, brain_db_query, brain_db_update, brain_db_delete
+- [ ] brain_db_schema, brain_db_raw_query (read-only SQL)
+
+**Brain maintenance:**
+- [ ] Brain rebuild from raw capability
+- [ ] Brain reorganization jobs (periodic large-model review)
+
+## Phase 4: Harness Hardening
+
+Focus: multi-step pipelines, deeper validation, self-improvement.
+
+- [ ] Multi-step pipelines (classify -> constrain -> process -> validate)
+- [ ] Semantic validation (does the query response address the question?)
+- [ ] Tier escalation on failure (fast -> standard -> complex)
+- [ ] Harness telemetry (success rates per task type, model, prompt version)
+- [ ] A/B testing for prompt variants
+- [ ] LLM-created tools: sandbox, validation, versioning
+- [ ] LLM-scheduled cron jobs (the LLM schedules its own recurring tasks)
+
+## Phase 5: Android App
 
 Focus: the primary input device.
 
@@ -77,7 +104,7 @@ Focus: the primary input device.
 - [ ] Push notifications for clarifications
 - [ ] View rendering on phone form factor
 
-## Phase 5: Education Mode + Proactive Assistant
+## Phase 6: Education Mode + Proactive Assistant
 
 Focus: the LLM becomes an active assistant, not just a passive filer.
 
@@ -86,9 +113,8 @@ Focus: the LLM becomes an active assistant, not just a passive filer.
 - [ ] Pattern detection (periodic analysis of note/query history)
 - [ ] Proactive suggestions and insights
 - [ ] Cross-domain reasoning (cooking impacts groceries, etc.)
-- [ ] LLM-scheduled cron jobs (the LLM can schedule its own recurring tasks)
 
-## Phase 6: Polish
+## Phase 7: Polish
 
 - [ ] Smart view caching
 - [ ] Persistent dashboards
