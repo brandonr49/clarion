@@ -1,0 +1,28 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+data_dir = "./data"
+
+[providers.ollama]
+base_url = "http://localhost:11434"
+
+[providers.claude]
+api_key_env = "ANTHROPIC_API_KEY"
+
+[providers.openai]
+api_key_env = "OPENAI_API_KEY"
+
+[routing]
+tier1 = "ollama:llama3.2:3b"
+tier2 = "ollama:llama3.1:8b"
+tier3 = "claude:claude-sonnet-4-20250514"
+
+[worker]
+poll_interval = 1.0
+max_retries = 3
+clarification_timeout_hours = 24
+
+[harness]
+max_iterations = 20
+tool_timeout = 30
+max_note_size = 102400
