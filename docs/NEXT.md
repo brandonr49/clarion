@@ -102,12 +102,28 @@ See `docs/design/harness-enforcement.md` for the design rationale.
 - [x] Brain database tools with access control (7 tools, 8 tests)
 - [x] Brain rebuild from raw with API endpoint
 
-**Remaining:**
+**Remaining — Dispatch System Overhaul:**
+See `docs/design/dispatch-system.md` for full design.
+
+- [ ] Replace simple classifier with dispatch system (bespoke fast paths for common ops)
+  - list_add, list_remove, reminder, lookup, info_capture, vent/journal, multi_item_dump
+  - Each dispatch path has a tight, validated toolchain
+  - Full LLM reasoning is the fallback for novel/ambiguous input
+- [ ] Multi-step query pipeline (classify → read → format → fallback → "I don't know")
+  - Model guesses which files to read, harness reads them, model checks if answer is there
+  - After N misses → "I don't know, I looked in X, Y, Z"
+- [ ] Database schema versioning (_schema_meta table, version in brain index)
+- [ ] Schema migration tools for brain databases
 - [ ] Semantic validation (does the query response address the question?)
 - [ ] Harness telemetry (success rates per task type, model, prompt version)
-- [ ] A/B testing for prompt variants
 - [ ] LLM-created tools: sandbox, validation, versioning
 - [ ] LLM-scheduled cron jobs (the LLM schedules its own recurring tasks)
+
+**Real-world note fixtures:**
+- `tests/fixtures/real_notes_sample.py` — 100+ real notes from user's actual note system
+- Covers: terse/cryptic, shopping, home improvement, tech, work venting, family, cooking,
+  media, finance, house design, renovations, batch notes
+- These are the benchmark for whether the brain organizes correctly at scale
 
 ## Phase 5: Android App
 
