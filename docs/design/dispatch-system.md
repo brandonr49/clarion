@@ -143,10 +143,69 @@ Migration: when the LLM decides a schema needs to change, it:
 
 ## Implementation Priority
 
-1. **Tool filtering per task type** ✅ (done)
-2. **Simple heuristic dispatch** (list_add, list_remove, completion detection) ✅ (partially done)
-3. **Multi-step query pipeline** (classify → read → format → fallback)
-4. **Bespoke toolchains** for each dispatch category
-5. **Fast model triage** (replace heuristics with LLM classification)
-6. **Database schema versioning** in create_brain_db
-7. **Schema migration tools**
+1. **Tool filtering per task type** ✅
+2. **LLM-based dispatch classification** ✅ (fast model classifies)
+3. **Multi-step query pipeline** ✅ (classify → read → answer → broaden → not found)
+4. **Database schema versioning** ✅ (_schema_meta table)
+5. **Bespoke toolchains** for each dispatch category (future)
+6. **Schema migration tools** (future)
+
+## Future Dispatch Categories
+
+The current 5 types (list_add, list_remove, info_update, needs_clarification, full_llm)
+are a starting point. As the brain grows, we need more:
+
+### Database Operations (Priority)
+
+**db_add**: Adding a structured entry to a brain database (not a markdown list).
+- The harness should inject the database schema into the LLM context so it knows
+  the column names, types, and which are required vs optional/defaulted.
+- Example: "I want to watch Inception" → dispatcher identifies `media/watchlist.db`,
+  harness loads the schema (title TEXT, recommended_by TEXT, rating REAL, watched INT),
+  fast model produces the INSERT values.
+- Column metadata matters: the model needs to know that `recommended_by` is optional,
+  `watched` defaults to 0, etc. These should be stored as comments or in _schema_meta.
+
+**db_remove**: Removing/updating a structured entry in a brain database.
+- "I watched Dune, 9/10" → find the row in watchlist.db, set watched=1 and rating=9.0.
+- The harness should load relevant rows so the model can identify which one to update.
+
+**db_query**: Direct database query (as a fast-path dispatch, not full LLM reasoning).
+- "What movies has Sarah recommended?" → dispatcher identifies watchlist.db,
+  harness runs the query directly with a simple WHERE clause.
+
+### Schema Column Metadata
+
+Brain databases need richer column metadata beyond just name+type:
+
+```sql
+-- In _schema_meta
+INSERT INTO _schema_meta (key, value) VALUES ('column_info', '{
+  "title": {"required": true, "description": "Movie/show/book title"},
+  "recommended_by": {"required": false, "description": "Who recommended this"},
+  "rating": {"required": false, "description": "Rating out of 10, set after consuming"},
+  "watched": {"required": false, "default": 0, "description": "1 if consumed, 0 if not"}
+}');
+```
+
+The LLM itself should define these when creating a database. The harness injects
+them into the dispatch context so the fast model can make correct INSERT/UPDATE calls.
+
+### Naming: Lists vs Databases
+
+"list_add" and "list_remove" may be misleading once most collections live in databases.
+Consider renaming:
+- `collection_add` — add entry to any collection (markdown list OR database)
+- `collection_remove` — mark done/remove from any collection
+- `collection_query` — read from any collection
+
+The dispatch logic would determine whether the target is a markdown file or a database
+and route to the appropriate toolchain. The model doesn't need to care about the
+storage format — the harness handles that distinction.
+
+### Other Future Categories
+
+- **reminder_set**: "remind me to X on Friday" → calendar/reminder system
+- **preference_update**: "I switched from Ralphs to Trader Joe's" → user profile update
+- **journal_entry**: emotional/personal content → store in journal area
+- **multi_item_batch**: multiple items in one note → split and dispatch each

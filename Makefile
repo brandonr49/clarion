@@ -38,7 +38,16 @@ lint:
 run:
 	.venv/bin/python -m clarion.app
 
-# Install dependencies
+# Install Python dependencies
 install:
 	python3 -m venv .venv
 	.venv/bin/pip install -e ".[dev]"
+
+# Build Android app
+android-build:
+	cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+		ANDROID_HOME=~/Library/Android/sdk ./gradlew assembleDebug
+
+# Install Android app on connected device
+android-install:
+	~/Library/Android/sdk/platform-tools/adb install -r android/app/build/outputs/apk/debug/app-debug.apk

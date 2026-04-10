@@ -54,7 +54,9 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Cloud model support (Claude API key from file, gitignored)
 - [x] Scale tests (30-50 notes, real-world note fixtures)
 - [x] Database schema versioning (_schema_meta table)
-- [ ] Bespoke fast-path toolchains (tight execution for list_add, list_remove)
+- [ ] Expand dispatch categories (db_add, db_remove, db_query, reminder, journal, batch)
+- [ ] Bespoke fast-path toolchains with schema injection for database ops
+- [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
 - [ ] Semantic validation (does query response address the question?)
 - [ ] Harness telemetry (success rates per task type, model, prompt)
 - [ ] Brain reorganization jobs (periodic large-model structure review)
