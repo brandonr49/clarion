@@ -168,6 +168,76 @@ brain/
 
 This is illustrative — the actual structure is the LLM's decision.
 
+## Raw File References
+
+The brain itself does NOT store binary files (images, PDFs, audio, etc.).
+But brain files can **link** to raw files stored in the raw storage area.
+
+### How It Works
+
+When a raw note includes a file attachment (future), the file is stored in a
+raw files directory alongside the SQLite database. The raw_notes table entry
+references the file path:
+
+```sql
+-- Raw note with file attachment
+INSERT INTO raw_notes (id, content, source_client, input_method, metadata)
+VALUES (
+    'uuid',
+    'photo of the house we looked at on Oak Street',
+    'android',
+    'typed',
+    '{"file": {"path": "raw_files/uuid.jpg", "type": "image/jpeg", "size": 2048576}}'
+);
+```
+
+### Brain References to Raw Files
+
+Brain markdown files can reference raw files using relative links:
+
+```markdown
+# House Hunting — Oak Street Property
+
+## Photos
+- Front of house: ![front](raw://uuid-1.jpg)
+- Backyard: ![yard](raw://uuid-2.jpg)
+
+## Notes
+- 3 bed, 2 bath, built 1985
+- Needs new roof (see inspection report: [report](raw://uuid-3.pdf))
+```
+
+The `raw://` prefix is a convention the harness resolves to the actual file path.
+The brain never copies raw files — it only references them.
+
+### Harness Behavior with Files
+
+When a raw note has a file attachment, the harness treats it very differently
+from text notes:
+
+- **Images**: the LLM receives the text description from the note content,
+  NOT the image itself (unless the model supports vision, in which case it
+  may optionally view the image for better categorization)
+- **Documents (PDF, etc.)**: the LLM receives the text description. Future
+  enhancement: extract text content from the document for the LLM to process.
+- **The brain stores descriptions and references, not the files themselves**
+
+### Raw File Storage
+
+```
+data/
+  clarion.db              # SQLite: raw notes, harness logs, etc.
+  raw_files/              # binary file attachments
+    uuid-1.jpg
+    uuid-2.jpg
+    uuid-3.pdf
+  brain/                  # the middleware brain (LLM workspace)
+    _index.md
+    ...
+```
+
+---
+
 ## Backup and Portability
 
 The brain is just a directory of standard files. Backup is trivial:

@@ -397,6 +397,22 @@ Sandboxing details deferred to Phase 3. The key constraint: LLM-created tools
 can only access brain files and raw notes. No filesystem access outside the brain,
 no network access, no system calls.
 
+### LLM-Scheduled Jobs (Future — Phase 5+)
+
+The LLM should be able to schedule recurring tasks via cron or a scheduler.
+If the user says "check my grocery list every Sunday and remind me what I need,"
+the LLM can:
+1. Write a tool that reads the grocery brain area and generates a reminder
+2. Register a scheduled job that calls that tool on a cron schedule
+3. The job output flows back through the system (as a notification or queued view)
+
+This requires:
+- A scheduler interface the LLM can register jobs with
+- Job definitions stored in the brain (under `_jobs/` or similar)
+- Job output routing (notification, queued message, brain update)
+- User visibility into active jobs (list, pause, delete)
+- Safety: jobs can only call LLM-created or built-in tools, same sandbox rules
+
 ---
 
 ## Note Classification (Model Tier Routing)

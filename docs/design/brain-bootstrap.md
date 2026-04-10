@@ -147,7 +147,10 @@ habits, and how they expect to use this system. Use this to:
 1. Create brain structure that anticipates their needs
 2. Set up appropriate files/databases for the described use cases
 3. Document preferences and patterns in a user profile area of the brain
-4. Do NOT ask clarification questions during priming — absorb everything
+4. You MAY ask clarification questions during priming — focus questions
+   on helping flesh out the organizational structure of the brain.
+   Example: "You mentioned gift ideas — do you want to track by person,
+   by occasion, or both?"
 ```
 
 ### User Profile Area
