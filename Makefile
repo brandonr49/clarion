@@ -48,6 +48,13 @@ android-build:
 	cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 		ANDROID_HOME=~/Library/Android/sdk ./gradlew assembleDebug
 
-# Install Android app on connected device
-android-install:
+# Install Android app on connected device or running emulator
+android-install: android-build
 	~/Library/Android/sdk/platform-tools/adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+
+# Start the Android emulator (runs in background)
+android-emulator:
+	~/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_36.1 &
+
+# Build + install + run in one step (emulator must already be running)
+android-run: android-install

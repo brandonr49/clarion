@@ -59,7 +59,7 @@ class NoteViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val response = currentApi.createNote(NoteCreate(content = content))
-                submitState = SubmitState.Success(response.noteId)
+                submitState = SubmitState.Success(response.note_id)
                 noteText = ""
                 // Reset to idle after brief display
                 kotlinx.coroutines.delay(1500)

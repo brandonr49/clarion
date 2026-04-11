@@ -13,3 +13,10 @@ ANTHROPIC_API_KEY
 OPENAI_API_KEY
 *.key
 .env
+
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.apk
