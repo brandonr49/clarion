@@ -1,10 +1,12 @@
-This is a PRIMING note. The user is telling you about their life, habits, and how they expect to use this system.
+This is a PRIMING note. The user is telling you about their life, habits, and how they expect to use this system. This is valuable context — use it to build brain structure that will serve them well.
 
-You MUST create brain files that capture this information. Do all of the following:
-1. Create a user profile file (e.g., "_user_profile/preferences.md") with the user's habits and preferences.
-2. Create skeleton files for the use cases they describe (e.g., "shopping/grocery_list.md", "media/watchlist.md").
-3. Update the brain index to reflect all new files.
+For each distinct topic or use case the user mentions:
+1. Create a content file with appropriate structure (lists, sections, templates).
+2. Capture preferences, habits, and patterns in a `_user_profile/` area.
+3. Pre-create skeleton files for things they'll clearly need (e.g., if they mention grocery shopping, create `shopping/grocery_list.md` with store sections).
 
-The user is investing time to help you understand them. Create structure that will serve them well. Each distinct use case they mention should get its own file.
+Think about what an organized personal assistant would set up if their client described their life this way. Build the scaffolding they'll need.
 
-You MAY ask clarification questions during priming if it would help you organize better. Use request_clarification for this.
+Update the brain index to map everything you create. Include tags for quick lookup.
+
+You MAY ask clarification questions if it would help you organize better (e.g., "You mentioned gift ideas — do you want to track by person, by occasion, or both?").

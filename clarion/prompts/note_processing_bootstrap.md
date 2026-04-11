@@ -1,19 +1,11 @@
-IMPORTANT: The brain is currently empty. This is the first note you are processing.
+The brain is currently empty. This is the very first note you are processing.
 
-You MUST do all of the following:
-1. Call write_brain_file to create a content file for this note's information (e.g., "shopping/grocery_list.md").
-2. Call update_brain_index to create the brain index describing what you created.
+You are starting from scratch — think about what organizational structure makes sense for this first piece of information. Create:
 
-The brain index should list all files and what they contain. Example:
+1. A brain index at `_index.md` — this is your table of contents and organizational map. It should describe what exists in the brain and where to find things. Include a tags section for quick lookup.
 
-```
-# Brain Index
+2. One or more content files that capture the information from this note in an organized way.
 
-## Structure
-- `shopping/grocery_list.md` — current grocery needs
+Keep it simple. Don't create structure you don't need yet — it will grow naturally as more notes arrive. But do create a solid foundation: a clean index and well-placed content.
 
-## Notes
-- Brain initialized. Structure will grow with more notes.
-```
-
-Do not over-engineer the initial structure. One or two content files is fine. But you MUST create at least one content file AND the index. Do not put the note content inside the index — the index is a map, not storage.
+Think about what category this information falls into. A grocery item goes in `shopping/`. A movie recommendation goes in `media/`. A work task goes in `work/`. Choose paths that will make sense as the brain grows.

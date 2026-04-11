@@ -96,14 +96,23 @@ async def execute_query_pipeline(
     logger.info("Query classification identified files: %s", relevant_files)
 
     if not relevant_files:
-        # Classifier found nothing — try search as fallback
+        # Classifier found nothing — try keyword search
         search_results = brain.search(query.lower(), max_results=5)
         relevant_files = [r["path"] for r in search_results]
         notes.append(f"step1_fallback_search: {relevant_files}")
 
+    if not relevant_files:
+        # Still nothing — read ALL brain files (brain is usually small)
+        all_files = brain.snapshot_file_state()
+        relevant_files = [
+            f for f in sorted(all_files.keys())
+            if not f.startswith("_index") and f.endswith((".md", ".json", ".txt"))
+        ]
+        notes.append(f"step1_fallback_all: {len(relevant_files)} files")
+
     # Step 2: Read the files (harness reads, no LLM needed)
     file_contents = {}
-    for path in relevant_files[:5]:  # limit to 5 files
+    for path in relevant_files[:10]:  # limit to 10 files
         content = brain.read_file(path)
         if content is not None:
             file_contents[path] = content
