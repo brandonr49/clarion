@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/clarion.png" alt="Clarion" width="200">
+</p>
+
 # Clarion
 
 *Bringing structure, clarity, and order to the chaos of thought.*
