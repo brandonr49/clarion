@@ -49,7 +49,7 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Note dispatch system (LIST_ADD, LIST_REMOVE, AMBIGUOUS, FULL_LLM)
 - [x] Ambiguity detection (terse notes trigger clarification)
 - [x] Multi-step query pipeline (classify -> read -> answer -> broaden -> not found)
-- [x] Pre-processing classifier (rule-based heuristics)
+- [x] LLM-based dispatcher (fast model classifies notes, replaces old rule-based classifier)
 - [x] Tier escalation on failure (FAST -> STANDARD)
 - [x] Cloud model support (Claude API key from file, gitignored)
 - [x] Scale tests (30-50 notes, real-world note fixtures)

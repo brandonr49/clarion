@@ -21,7 +21,7 @@ from clarion.providers.router import ModelRouter, Tier
 logger = logging.getLogger(__name__)
 
 CLASSIFY_QUERY_PROMPT = """\
-You are a query classifier. Given a brain index and a user query, identify which \
+You are a query dispatcher. Given a brain index and a user query, identify which \
 brain files are most likely to contain the answer.
 
 Reply with ONLY a JSON object:

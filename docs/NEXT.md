@@ -89,30 +89,28 @@ See `docs/design/harness-enforcement.md` for the design rationale.
 ## Phase 4: Harness Hardening (IN PROGRESS)
 
 **Implemented:**
-- [x] Pre-processing classifier (rule-based heuristics):
-  - Classifies notes by complexity: SIMPLE, STANDARD, COMPLEX
-  - Detects list additions, completions, UI actions, priming, novel topics
-  - Finds relevant brain areas by keyword-matching against the brain index
-  - Routes to appropriate model tier (FAST for simple, STANDARD for normal)
-- [x] Tier escalation on validation failure (FAST -> STANDARD on retry failure)
-- [x] 10 classifier unit tests
+- [x] LLM-based dispatcher: fast model classifies notes into categories
+  (LIST_ADD, LIST_REMOVE, INFO_UPDATE, NEEDS_CLARIFICATION, FULL_LLM)
+  - See `docs/design/dispatch-system.md` for full design and history
+  - Replaces the earlier rule-based "classifier" which used string matching
+  - The fast LLM decides the category, not regex patterns
+  - Falls back gracefully to FULL_LLM if fast model is unavailable
+- [x] Multi-step query pipeline (classify → read → answer → broaden → not found)
+  - Fast model identifies relevant files, harness reads them directly
+  - Standard model answers with pre-loaded context
+  - If answer not found, broadens search, then "I don't know" with searched files
+- [x] Tier escalation on validation failure (FAST → STANDARD on retry failure)
+- [x] Database schema versioning (_schema_meta table with version, created_at, schema)
 - [x] Cloud model support: Claude API key from file or env var, gitignored
-- [x] Cloud model integration test (Claude Haiku)
+- [x] Cloud model integration test (Claude Haiku — 3/3 passing)
 - [x] Scale tests (30-50 diverse notes through full pipeline)
 - [x] Brain database tools with access control (7 tools, 8 tests)
 - [x] Brain rebuild from raw with API endpoint
 
-**Remaining — Dispatch System Overhaul:**
-See `docs/design/dispatch-system.md` for full design.
-
-- [ ] Replace simple classifier with dispatch system (bespoke fast paths for common ops)
-  - list_add, list_remove, reminder, lookup, info_capture, vent/journal, multi_item_dump
-  - Each dispatch path has a tight, validated toolchain
-  - Full LLM reasoning is the fallback for novel/ambiguous input
-- [ ] Multi-step query pipeline (classify → read → format → fallback → "I don't know")
-  - Model guesses which files to read, harness reads them, model checks if answer is there
-  - After N misses → "I don't know, I looked in X, Y, Z"
-- [ ] Database schema versioning (_schema_meta table, version in brain index)
+**Remaining:**
+- [ ] Expand dispatch categories (db_add, db_remove, db_query, reminder, journal, batch)
+- [ ] Bespoke fast-path toolchains with schema injection for database ops
+- [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
 - [ ] Schema migration tools for brain databases
 - [ ] Semantic validation (does the query response address the question?)
 - [ ] Harness telemetry (success rates per task type, model, prompt version)

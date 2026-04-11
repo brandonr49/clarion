@@ -46,8 +46,9 @@ class DispatchResult:
 
 
 DISPATCH_CLASSIFY_PROMPT = """\
-You are a note classifier for a personal assistant. Given a brain index and a new note, \
-classify what kind of operation this note represents.
+You are a dispatcher for a personal assistant. Given a brain index and a new note, \
+determine what kind of operation this note represents so the system can handle it \
+via the most appropriate path.
 
 Reply with ONLY a JSON object:
 {

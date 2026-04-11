@@ -1,10 +1,25 @@
-# Dispatch System (Replaces Simple Classifier)
+# Dispatch System
 
-## Motivation
+## What Is the Dispatcher?
 
-The "classifier" from Phase 4 is too shallow. Real notes need a dispatch system
-that identifies the *type of operation* and routes to bespoke, well-validated
-toolchains for common operations. The big LLM only fires for novel/ambiguous input.
+The dispatcher is the first step when a note or query arrives. It uses a **fast LLM**
+to determine what kind of operation this is, then routes to the appropriate handler:
+- **Fast path**: a bespoke, validated toolchain for common operations (list add,
+  list remove, database insert, etc.). Tight, predictable, guarded by the harness.
+- **Full LLM reasoning**: the complete agent loop with all tools available. Used for
+  novel topics, complex reasoning, brain reorganization, or anything the dispatcher
+  can't confidently categorize.
+
+The point is NOT to preference fast paths. It's to determine quickly whether one
+applies. If it does, use it (it's faster and more reliable). If not, think hard.
+
+### History
+
+The initial "classifier" (Phase 4 v1) used rule-based string matching — checking
+note length and regex patterns. This was correctly rejected because the decision
+of whether a note is a "list addition" should be made by an LLM, not by matching
+"buy" at the start of a string. The classifier was replaced with the current
+LLM-based dispatcher. There is one concept, not two.
 
 ## Architecture
 
