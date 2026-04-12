@@ -19,5 +19,41 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Widget input activities (launched by widgets) -->
+        <activity
+            android:name=".widget.WidgetInputActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Clarion"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".widget.WidgetQueryActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Clarion"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Quick Note Widget -->
+        <receiver
+            android:name=".widget.QuickNoteWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_note_widget_info" />
+        </receiver>
+
+        <!-- Query Dashboard Widget -->
+        <receiver
+            android:name=".widget.QueryWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/query_widget_info" />
+        </receiver>
     </application>
 </manifest>

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Clarion</string>
+    <string name="quick_note_desc">Quick note input — tap to type and submit</string>
+    <string name="query_widget_desc">Ask Clarion a question</string>
 </resources>
