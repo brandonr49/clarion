@@ -265,16 +265,11 @@ class Harness:
         write_tools_used = [t for t in tools_used if t in WRITE_TOOLS]
         if not write_tools_used:
             issues.append("no_write_tools")
-            return ValidationResult(
-                passed=False,
-                issues=issues,
-                retry_prompt=(
-                    "You did not store the note's information in the brain. "
-                    "You MUST call write_brain_file, append_brain_file, or edit_brain_file "
-                    "to save the information. Please process the note again and use tools "
-                    "to write the content to brain files."
-                ),
-            )
+            retry = self._prompts.get("retry_no_tools", (
+                "You did not use any tools. Please process the note and make "
+                "changes to the brain using write/edit/append tools."
+            ))
+            return ValidationResult(passed=False, issues=issues, retry_prompt=retry)
 
         added, removed, modified = self._brain.diff_file_state(state_before, state_after)
         if not added and not removed and not modified:
@@ -295,17 +290,11 @@ class Harness:
             index_was_updated = INDEX_FILENAME in modified or INDEX_FILENAME in added
             if not index_was_updated:
                 issues.append("index_not_updated_after_file_change")
-                changed = non_index_added | non_index_removed
-                return ValidationResult(
-                    passed=False,
-                    issues=issues,
-                    retry_prompt=(
-                        f"You {'created' if non_index_added else 'removed'} brain files "
-                        f"({', '.join(changed)}) but did not update the brain index "
-                        f"(_index.md). Please call update_brain_index to reflect the "
-                        f"current brain structure."
-                    ),
-                )
+                retry = self._prompts.get("retry_no_index", (
+                    f"You created/removed brain files but did not update the index. "
+                    f"Please call update_brain_index."
+                ))
+                return ValidationResult(passed=False, issues=issues, retry_prompt=retry)
 
         if issues:
             return ValidationResult(passed=True, issues=issues)

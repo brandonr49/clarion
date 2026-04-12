@@ -182,7 +182,7 @@ async def test_grocery_lifecycle(env):
     expected = ["milk", "eggs", "bread", "paper towels", "bananas"]
     found = [i for i in expected if i in search]
     print(f"  Found in response: {found}")
-    assert len(found) >= 3, f"Expected at least 3 items, found: {found}"
+    assert len(found) >= 4, f"Expected at least 4/5 items in query response, found: {found}"
 
     # Phase 4: Mark items as bought
     print("\n--- Phase 4: Mark items bought ---")

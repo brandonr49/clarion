@@ -1,11 +1,18 @@
-The brain is currently empty. This is the very first note you are processing.
+The brain is currently empty. This is the very first note. You are building the foundation.
 
-You are starting from scratch — think about what organizational structure makes sense for this first piece of information. Create:
+Create:
 
-1. A brain index at `_index.md` — this is your table of contents and organizational map. It should describe what exists in the brain and where to find things. Include a tags section for quick lookup.
+1. **A brain index** (`_index.md`) — this is the most important file in the brain. It must include:
+   - An "Organization Philosophy" section explaining how the brain is structured
+   - A "Structure" section listing every file with its path, purpose, and a summary of contents
+   - A "Tags" section for cross-cutting lookup
 
-2. One or more content files that capture the information from this note in an organized way.
+2. **Content file(s)** — one or more files that capture the transformed information from this note. Choose paths that will make sense as the brain grows:
+   - Grocery/shopping → `shopping/`
+   - Movies/books/media → `media/`
+   - Work tasks → `work/`
+   - Home projects → `home/`
+   - Family → `family/`
+   - Personal tasks → `tasks/`
 
-Keep it simple. Don't create structure you don't need yet — it will grow naturally as more notes arrive. But do create a solid foundation: a clean index and well-placed content.
-
-Think about what category this information falls into. A grocery item goes in `shopping/`. A movie recommendation goes in `media/`. A work task goes in `work/`. Choose paths that will make sense as the brain grows.
+Keep the initial structure simple — don't create empty files you don't need yet. But make the index thorough even for a small brain. The index is how future invocations navigate.

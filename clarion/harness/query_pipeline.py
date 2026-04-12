@@ -21,8 +21,11 @@ from clarion.providers.router import ModelRouter, Tier
 logger = logging.getLogger(__name__)
 
 CLASSIFY_QUERY_PROMPT = """\
-You are a query dispatcher. Given a brain index and a user query, identify which \
+You are a query router. Given a brain index and a user query, identify which \
 brain files are most likely to contain the answer.
+
+Read the index carefully. Each file has a description of its contents. Match the \
+query to the files whose descriptions are most relevant.
 
 Reply with ONLY a JSON object:
 {
@@ -31,7 +34,10 @@ Reply with ONLY a JSON object:
   "reasoning": "brief explanation"
 }
 
-Do NOT answer the query. Just identify the files."""
+Important:
+- Use the EXACT file paths from the index (including subdirectories like "shopping/grocery_list.md")
+- Include ALL files that might be relevant, not just one
+- Do NOT answer the query — just identify the files"""
 
 ANSWER_WITH_CONTEXT_PROMPT = """\
 You are Clarion, a personal assistant. Answer the user's question using ONLY the \
@@ -106,7 +112,9 @@ async def execute_query_pipeline(
         all_files = brain.snapshot_file_state()
         relevant_files = [
             f for f in sorted(all_files.keys())
-            if not f.startswith("_index") and f.endswith((".md", ".json", ".txt"))
+            if not f.startswith("_index")
+            and not f.startswith("_schema")
+            and any(f.endswith(ext) for ext in (".md", ".json", ".txt"))
         ]
         notes.append(f"step1_fallback_all: {len(relevant_files)} files")
 
