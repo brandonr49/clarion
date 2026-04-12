@@ -25,37 +25,30 @@ The brain should reflect CURRENT REALITY, not a history of notes. When a note ch
 
 ## Brain Index Guidelines
 
-The brain index (`_index.md`) is critical infrastructure. It must be:
+The brain index (`_index.md`) is critical infrastructure — it's how queries find information. Rules:
 
-- **Complete**: every file and directory listed with its path
-- **Descriptive**: a short summary of what each file contains and what kind of information belongs there
-- **Navigable**: someone (or a future LLM invocation) reading only the index should know exactly which file to open for any given topic
-- **Tagged**: include a tags section for quick cross-cutting lookup
+- **List every file** with its path and a SHORT description of what KIND of information it holds.
+- **Do NOT put actual content in the index.** The index says "grocery needs organized by store" — NOT "milk, eggs, bread, paper towels." The actual items live in the file, not the index.
+- **Include an Organization Philosophy** section explaining the structure.
+- **Include a Tags section** for cross-cutting lookup.
 
-Example of a good index:
+Example of a GOOD index entry:
 ```
-# Brain Index
-
-## Organization Philosophy
-This brain is organized by life domain. Each domain gets a directory.
-Lists of actionable items are kept as simple markdown lists.
-Completed/purchased items are removed, not marked.
-
-## Structure
-- `shopping/grocery_list.md` — Current grocery needs, organized by store (Costco monthly, Ralphs weekly). Contains: milk, eggs, bread, produce, household items.
-- `shopping/other.md` — Non-grocery shopping: electronics, home goods, clothing.
-- `media/watchlist.md` — Movies, TV shows, and books to consume. Tracks: title, who recommended, status, rating.
-- `work/tasks.md` — Active work tasks and deadlines.
-- `home/repairs.md` — Home maintenance and repair items.
-- `family/lily.md` — Child-related: appointments, milestones, sizes, needs.
-
-## Tags
-- shopping: shopping/grocery_list.md, shopping/other.md
-- media: media/watchlist.md
-- work: work/tasks.md
-- family: family/lily.md
-- urgent: shopping/grocery_list.md, home/repairs.md
+- `shopping/grocery_list.md` — Current grocery needs, organized by store (Costco vs Ralphs)
 ```
+
+Example of a BAD index entry (too much content):
+```
+- `shopping/grocery_list.md` — Contains: milk, eggs, bread, paper towels, bananas, olive oil, avocados
+```
+
+## Data Format Evolution
+
+As lists grow, consider whether they should become structured databases:
+- A short grocery list (5-10 items) is fine as markdown.
+- A long list (20+ items), or data with multiple fields (title, author, rating, status), should be a brain database (.db file) using create_brain_db.
+- Databases allow cleaner queries and structured operations.
+- When you notice a markdown list growing large, consider migrating it to a database.
 
 ## File Content Guidelines
 

@@ -78,6 +78,8 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 ### Phase 7: Polish
 - [ ] Smart view caching
 - [ ] Persistent dashboards
+- [ ] Brain file browser in Android app (read-only, cached)
+- [ ] Cache most recent brain state in Android app
 - [ ] Desktop PWA or native wrapper
 - [ ] Multi-user support (2 users)
 - [ ] File attachments (raw:// links in brain files)

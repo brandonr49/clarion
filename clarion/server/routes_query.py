@@ -28,6 +28,13 @@ async def query_brain(body: QueryRequest, request: Request):
         logger.error("Query failed: %s", e, exc_info=True)
         raise HTTPException(500, f"Query processing failed: {e}")
 
+    logger.info(
+        "Query response: view_type=%s, raw_text_len=%d, view_keys=%s",
+        result.view.get("type") if result.view else None,
+        len(result.content),
+        list(result.view.keys()) if result.view else None,
+    )
+
     return QueryResponse(
         query_id=str(uuid4()),
         raw_text=result.content,

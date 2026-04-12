@@ -7,7 +7,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.*
@@ -20,13 +24,14 @@ fun ViewRenderer(
     val type = view["type"]?.jsonPrimitive?.contentOrNull ?: "markdown"
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Title
             val title = view["title"]?.jsonPrimitive?.contentOrNull
             if (title != null) {
                 Text(
@@ -44,7 +49,7 @@ fun ViewRenderer(
                 "key_value" -> KeyValueRenderer(view)
                 "markdown" -> MarkdownRenderer(view)
                 "composite" -> CompositeRenderer(view, onInteraction)
-                else -> Text("Unknown view type: $type", fontSize = 12.sp)
+                else -> MarkdownRenderer(view)
             }
         }
     }
@@ -62,8 +67,12 @@ private fun ChecklistRenderer(view: JsonObject, onInteraction: (String) -> Unit)
                 heading,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                modifier = Modifier.padding(bottom = 4.dp),
             )
         }
 
@@ -71,15 +80,15 @@ private fun ChecklistRenderer(view: JsonObject, onInteraction: (String) -> Unit)
         items.forEach { itemEl ->
             val item = itemEl.jsonObject
             val label = item["label"]?.jsonPrimitive?.contentOrNull ?: ""
-            val checked = item["checked"]?.jsonPrimitive?.booleanOrNull ?: false
+            val initialChecked = item["checked"]?.jsonPrimitive?.booleanOrNull ?: false
 
-            var isChecked by remember(label) { mutableStateOf(checked) }
+            var isChecked by remember(label) { mutableStateOf(initialChecked) }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp),
+                    .padding(vertical = 1.dp),
             ) {
                 Checkbox(
                     checked = isChecked,
@@ -88,17 +97,20 @@ private fun ChecklistRenderer(view: JsonObject, onInteraction: (String) -> Unit)
                         val action = if (newValue) "completed" else "uncompleted"
                         onInteraction("$action: $label")
                     },
+                    modifier = Modifier.size(36.dp),
                     colors = CheckboxDefaults.colors(
                         checkedColor = MaterialTheme.colorScheme.primary,
                     ),
                 )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     label,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     color = if (isChecked)
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     else
                         MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (isChecked) TextDecoration.LineThrough else null,
                 )
             }
         }
@@ -111,7 +123,6 @@ private fun TableRenderer(view: JsonObject) {
     val rows = view["rows"]?.jsonArray ?: return
 
     Column(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-        // Header
         if (headers.isNotEmpty()) {
             Row(modifier = Modifier.padding(bottom = 4.dp)) {
                 headers.forEach { header ->
@@ -120,14 +131,15 @@ private fun TableRenderer(view: JsonObject) {
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(120.dp).padding(4.dp),
+                        modifier = Modifier
+                            .width(120.dp)
+                            .padding(4.dp),
                     )
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }
 
-        // Rows
         rows.forEach { rowEl ->
             val cells = rowEl.jsonArray
             Row(modifier = Modifier.padding(vertical = 2.dp)) {
@@ -135,7 +147,9 @@ private fun TableRenderer(view: JsonObject) {
                     Text(
                         cell.jsonPrimitive.contentOrNull ?: "",
                         fontSize = 13.sp,
-                        modifier = Modifier.width(120.dp).padding(4.dp),
+                        modifier = Modifier
+                            .width(120.dp)
+                            .padding(4.dp),
                     )
                 }
             }
@@ -153,16 +167,22 @@ private fun KeyValueRenderer(view: JsonObject) {
         val value = pair["value"]?.jsonPrimitive?.contentOrNull ?: ""
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
         ) {
             Text(
                 key,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(120.dp),
+                modifier = Modifier.width(130.dp),
             )
-            Text(value, fontSize = 14.sp)
+            Text(
+                value,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
@@ -170,18 +190,89 @@ private fun KeyValueRenderer(view: JsonObject) {
 @Composable
 private fun MarkdownRenderer(view: JsonObject) {
     val content = view["content"]?.jsonPrimitive?.contentOrNull ?: ""
-    // Simple markdown rendering — just show as text for now
-    // A proper markdown library can be added later
-    Text(content, fontSize = 14.sp, lineHeight = 20.sp)
+    if (content.isBlank()) return
+
+    // Render markdown as styled text
+    val lines = content.split("\n")
+    Column {
+        for (line in lines) {
+            val trimmed = line.trimStart()
+            when {
+                trimmed.startsWith("### ") -> Text(
+                    trimmed.removePrefix("### "),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+                )
+                trimmed.startsWith("## ") -> Text(
+                    trimmed.removePrefix("## "),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 3.dp),
+                )
+                trimmed.startsWith("# ") -> Text(
+                    trimmed.removePrefix("# "),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                )
+                trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
+                    val bullet = trimmed.removePrefix("- ").removePrefix("* ")
+                    Row(modifier = Modifier.padding(start = 8.dp, top = 2.dp)) {
+                        Text("•  ", fontSize = 14.sp)
+                        Text(
+                            buildAnnotatedString {
+                                renderInlineMarkdown(bullet)
+                            },
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                        )
+                    }
+                }
+                trimmed.isBlank() -> Spacer(modifier = Modifier.height(6.dp))
+                else -> Text(
+                    buildAnnotatedString {
+                        renderInlineMarkdown(trimmed)
+                    },
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(vertical = 1.dp),
+                )
+            }
+        }
+    }
+}
+
+private fun androidx.compose.ui.text.AnnotatedString.Builder.renderInlineMarkdown(text: String) {
+    var i = 0
+    while (i < text.length) {
+        when {
+            text.startsWith("**", i) -> {
+                val end = text.indexOf("**", i + 2)
+                if (end != -1) {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(text.substring(i + 2, end))
+                    }
+                    i = end + 2
+                } else {
+                    append(text[i])
+                    i++
+                }
+            }
+            else -> {
+                append(text[i])
+                i++
+            }
+        }
+    }
 }
 
 @Composable
 private fun CompositeRenderer(view: JsonObject, onInteraction: (String) -> Unit) {
     val children = view["children"]?.jsonArray ?: return
-
     children.forEach { childEl ->
         val child = childEl.jsonObject
         ViewRenderer(view = child, onInteraction = onInteraction)
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
     }
 }
