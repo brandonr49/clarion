@@ -247,26 +247,21 @@ async def test_note_validation_index_check(brain, note_store, prompts):
 
 
 async def test_note_no_index_update_needed_for_append(brain, note_store, prompts):
-    """Appending to existing file without changing file list doesn't require index update."""
+    """List add via fast path: appends to file without needing index update."""
     brain.write_file("_index.md", "# Index\n- `grocery.md` — groceries")
     brain.write_file("grocery.md", "- milk")
 
     mock = MockProvider([
-        # First call: dispatch classification
+        # First call: dispatch classification → list_add
         DISPATCH_LIST_ADD,
-        # Second call: actual note processing — appends
-        LLMResponse(
-            content=None,
-            tool_calls=[
-                ToolCall(id="tc1", name="append_brain_file",
-                         arguments={"path": "grocery.md", "content": "\n- eggs"}),
-            ],
-        ),
-        LLMResponse(content="Added eggs.", tool_calls=[]),
+        # Second call: fast path LLM returns updated file content
+        LLMResponse(content="- milk\n- eggs"),
     ])
     harness = make_harness(brain, note_store, mock, prompts)
     result = await harness.process_note(make_note("add eggs"))
     assert brain.read_file("grocery.md") == "- milk\n- eggs"
+    # Should have used fast path
+    assert any("fast_path" in n for n in result.validation_notes)
 
 
 async def test_clarification_when_dispatch_says_so(brain, note_store, prompts):

@@ -76,11 +76,24 @@ class Harness:
             from clarion.brain.tools import ClarificationRequested
             raise ClarificationRequested(dispatch.clarification_question)
 
-        # Step 3: For fast-path types, the LLM still processes but with
-        # constrained context (target files hint in the prompt)
-        # Future: bespoke toolchains for each dispatch type
+        # Step 3: Try fast path — tight, validated toolchain
+        from clarion.harness.fast_paths import try_fast_path
+        fast_result = await try_fast_path(dispatch, note, self._brain, self._router)
+        if fast_result is not None:
+            summary, brain_changed = fast_result
+            logger.info("Fast path handled: %s -> %s", dispatch.dispatch_type.value, summary)
+            return HarnessResult(
+                content=summary,
+                tool_calls_made=0,
+                total_usage=TokenUsage(0, 0),
+                model_used="fast_path",
+                validation_notes=[
+                    f"dispatch: {dispatch.dispatch_type.value}",
+                    f"fast_path: {summary}",
+                ],
+            )
 
-        # Step 3: Select provider and process
+        # Step 4: Full agent loop (fast path not available or failed)
         provider = self._router.get_provider(dispatch.tier)
         system_prompt = self._build_note_system_prompt(note)
         brain_index = self._brain.read_index() or "Brain index does not exist yet."

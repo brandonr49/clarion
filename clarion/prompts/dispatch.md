@@ -27,6 +27,13 @@ Examples:
 - "Sprint review moved to Thursday" → update meeting time
 - "switched from Ralphs to Trader Joe's" → update store preference
 
+**reminder** — The user wants to be reminded about something at a specific time.
+Examples:
+- "remind me to call the dentist tomorrow" → reminder
+- "at 3pm check on the laundry" → reminder
+- "don't forget to submit the report by Friday" → reminder
+- "Lily's doctor appointment is May 15th at 2pm" → this is info_update (storing a fact), NOT a reminder. Reminders are about prompting the user at a future time.
+
 **needs_clarification** — You genuinely cannot determine the intent. The note is too ambiguous.
 Examples:
 - "Solar" (no context exists in brain about solar anything)
@@ -46,7 +53,7 @@ Given the brain index and the new note, reply with ONLY a JSON object:
 
 ```json
 {
-  "intent": "list_add|list_remove|info_update|needs_clarification|full_llm",
+  "intent": "list_add|list_remove|info_update|reminder|needs_clarification|full_llm",
   "target_files": ["path/to/relevant/file.md"],
   "reasoning": "brief explanation of why you chose this intent",
   "clarification_question": "only if intent is needs_clarification"

@@ -30,7 +30,8 @@ class DispatchType(Enum):
     """Dispatch categories for incoming notes."""
     LIST_ADD = "list_add"
     LIST_REMOVE = "list_remove"
-    INFO_UPDATE = "info_update"       # update existing info (size changed, date moved, etc.)
+    INFO_UPDATE = "info_update"
+    REMINDER = "reminder"
     NEEDS_CLARIFICATION = "needs_clarification"
     FULL_LLM = "full_llm"
 
@@ -152,53 +153,61 @@ class NoteDispatcher:
 
     def _parse_classification(self, text: str) -> DispatchResult:
         """Parse the LLM's classification response."""
-        # Try to extract JSON — look for intent or type field
-        json_match = re.search(r'\{[^{}]*"(?:intent|type)"[^{}]*\}', text, re.DOTALL)
-        if not json_match:
-            block_match = re.search(r'```(?:json)?\s*\n(.*?)\n\s*```', text, re.DOTALL)
-            if block_match:
-                json_match = re.search(r'\{.*\}', block_match.group(1), re.DOTALL)
+        # Strategy 1: code block
+        block_match = re.search(r'```(?:json)?\s*\n(.*?)\n\s*```', text, re.DOTALL)
+        if block_match:
+            try:
+                data = json.loads(block_match.group(1).strip())
+                if isinstance(data, dict) and ("intent" in data or "type" in data):
+                    return self._build_dispatch_result(data)
+            except json.JSONDecodeError:
+                pass
 
-        if not json_match:
-            logger.warning("Could not parse dispatch response, defaulting to full_llm: %s", text[:200])
-            return DispatchResult(
-                dispatch_type=DispatchType.FULL_LLM,
-                tier=Tier.STANDARD,
-                reasoning="Could not parse classification response",
-            )
+        # Strategy 2: balanced brace matching (handles multi-line JSON)
+        from clarion.views.parser import _find_matching_brace
+        i = text.find('{')
+        while i >= 0 and i < len(text):
+            end = _find_matching_brace(text, i)
+            if end is not None:
+                candidate = text[i:end + 1]
+                try:
+                    data = json.loads(candidate)
+                    if isinstance(data, dict) and ("intent" in data or "type" in data):
+                        return self._build_dispatch_result(data)
+                except json.JSONDecodeError:
+                    pass
+            i = text.find('{', i + 1)
 
-        try:
-            data = json.loads(json_match.group(0))
-        except json.JSONDecodeError:
-            return DispatchResult(
-                dispatch_type=DispatchType.FULL_LLM,
-                tier=Tier.STANDARD,
-                reasoning="Malformed JSON in classification response",
-            )
+        logger.warning("Could not parse dispatch response, defaulting to full_llm: %s", text[:200])
+        return DispatchResult(
+            dispatch_type=DispatchType.FULL_LLM,
+            tier=Tier.STANDARD,
+            reasoning="Could not parse classification response",
+        )
 
-        # Accept both "intent" and "type" field names
+    def _build_dispatch_result(self, data: dict) -> DispatchResult:
+        """Build a DispatchResult from parsed JSON data."""
         dtype_str = data.get("intent", data.get("type", "full_llm"))
         target_files = data.get("target_files", [])
         reasoning = data.get("reasoning", "")
         clar_question = data.get("clarification_question", "")
 
-        # Map to DispatchType
         type_map = {
             "list_add": DispatchType.LIST_ADD,
             "list_remove": DispatchType.LIST_REMOVE,
             "info_update": DispatchType.INFO_UPDATE,
+            "reminder": DispatchType.REMINDER,
             "needs_clarification": DispatchType.NEEDS_CLARIFICATION,
             "full_llm": DispatchType.FULL_LLM,
         }
         dispatch_type = type_map.get(dtype_str, DispatchType.FULL_LLM)
 
-        # Determine tier
-        if dispatch_type in (DispatchType.LIST_ADD, DispatchType.LIST_REMOVE, DispatchType.INFO_UPDATE):
+        if dispatch_type in (DispatchType.LIST_ADD, DispatchType.LIST_REMOVE,
+                             DispatchType.INFO_UPDATE, DispatchType.REMINDER):
             tier = Tier.FAST
         else:
             tier = Tier.STANDARD
 
-        # Handle clarification
         needs_clar = dispatch_type == DispatchType.NEEDS_CLARIFICATION
         if needs_clar and not clar_question:
             clar_question = "Could you provide more context about this note?"

@@ -22,6 +22,35 @@ async def get_status(request: Request):
     )
 
 
+@router.get("/reminders")
+async def get_reminders(request: Request):
+    """Get pending reminders."""
+    from clarion.harness.reminders import get_pending_reminders
+    brain = request.app.state.brain
+    reminders = get_pending_reminders(brain)
+    return {"reminders": reminders}
+
+
+@router.post("/brain/review")
+async def review_brain_endpoint(request: Request):
+    """Run a brain structure review using a strong model."""
+    from clarion.harness.brain_maintenance import run_brain_review
+
+    brain = request.app.state.brain
+    config = request.app.state.config
+    harness = request.app.state.harness
+
+    logger.info("Brain review requested")
+    try:
+        router = harness._router
+        registry = harness._registry
+        stats = await run_brain_review(brain, router, registry, config.harness)
+        return {"status": "completed", **stats}
+    except Exception as e:
+        logger.error("Brain review failed: %s", e, exc_info=True)
+        raise HTTPException(500, f"Brain review failed: {e}")
+
+
 @router.post("/brain/rebuild")
 async def rebuild_brain_endpoint(request: Request):
     """Rebuild the brain from all raw notes. This is destructive and slow."""
