@@ -109,18 +109,31 @@ class NoteViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun flushQueue(api: ClarionApi) {
         if (offlineQueue.isEmpty) return
+
+        // Take all notes out of the queue atomically
+        val pending = offlineQueue.takeAll()
+        if (pending.isEmpty()) return
+
+        val failed = mutableListOf<NoteCreate>()
         var flushed = 0
-        while (!offlineQueue.isEmpty) {
-            val note = offlineQueue.removeFirst() ?: break
+
+        for (note in pending) {
             try {
                 api.createNote(note)
                 flushed++
             } catch (_: Exception) {
-                // Server went down again — re-queue and stop
-                offlineQueue.enqueue(note)
+                // Server went down — this note and all remaining go back
+                failed.add(note)
+                failed.addAll(pending.drop(flushed + failed.size))
                 break
             }
         }
+
+        // Put unsent notes back
+        if (failed.isNotEmpty()) {
+            offlineQueue.requeue(failed)
+        }
+
         queuedCount = offlineQueue.size
         if (flushed > 0) {
             submitState = SubmitState.Success("Synced $flushed queued note(s)")

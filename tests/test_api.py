@@ -160,3 +160,69 @@ async def test_clarifications_empty(client: AsyncClient):
     resp = await client.get("/api/v1/clarifications")
     assert resp.status_code == 200
     assert resp.json()["clarifications"] == []
+
+
+async def test_clarification_lifecycle(client: AsyncClient):
+    """Full clarification flow: create note, mark awaiting, check endpoint, respond."""
+    # Create a note
+    create_resp = await client.post("/api/v1/notes", json={
+        "content": "Solar!!!",
+        "source_client": "android",
+        "input_method": "typed",
+    })
+    assert create_resp.status_code == 202
+    note_id = create_resp.json()["note_id"]
+
+    # Manually mark it as awaiting clarification (simulates LLM requesting one)
+    note_store = client._transport.app.state.note_store  # type: ignore
+    await note_store.dequeue_next()  # move to processing
+    clar = await note_store.mark_awaiting_clarification(
+        note_id, "What do you mean by Solar? Is this a project, something to buy, or something else?"
+    )
+
+    # Check clarifications endpoint — should have one
+    resp = await client.get("/api/v1/clarifications")
+    assert resp.status_code == 200
+    clars = resp.json()["clarifications"]
+    assert len(clars) == 1
+    assert clars[0]["id"] == clar.id
+    assert "Solar" in clars[0]["question"]
+    assert clars[0]["note_id"] == note_id
+
+    # Respond to the clarification via a new note with metadata
+    reply_resp = await client.post("/api/v1/notes", json={
+        "content": "Solar panels for the house, it's a home improvement project",
+        "source_client": "android",
+        "input_method": "typed",
+        "metadata": {"clarification_id": clar.id},
+    })
+    assert reply_resp.status_code == 202
+
+    # Clarifications should now be empty (responded)
+    resp = await client.get("/api/v1/clarifications")
+    assert resp.status_code == 200
+    assert resp.json()["clarifications"] == []
+
+    # Original note should be re-queued
+    status_resp = await client.get(f"/api/v1/notes/{note_id}/status")
+    assert status_resp.json()["status"] == "queued"
+
+
+async def test_note_status_includes_summary(client: AsyncClient):
+    """After processing, the status endpoint should include the processing summary."""
+    create_resp = await client.post("/api/v1/notes", json={
+        "content": "test summary",
+        "source_client": "web",
+        "input_method": "typed",
+    })
+    note_id = create_resp.json()["note_id"]
+
+    # Simulate processing with a summary
+    note_store = client._transport.app.state.note_store  # type: ignore
+    await note_store.dequeue_next()
+    await note_store.mark_processed(note_id, summary="Added test to brain")
+
+    resp = await client.get(f"/api/v1/notes/{note_id}/status")
+    data = resp.json()
+    assert data["status"] == "processed"
+    assert data["summary"] == "Added test to brain"
