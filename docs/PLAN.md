@@ -67,12 +67,11 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Settings screen (server URL config, connection test)
 - [x] Dark theme matching web UI
 - [x] Network security (cleartext HTTP for local network)
-- [ ] Local voice-to-text (on-device model)
-- [ ] Home screen widgets (note input + query dashboard)
-- [ ] Push notifications for clarifications
-- [ ] Offline note queue
+- [x] Home screen widgets (Quick Note + Query Dashboard via Glance)
+- [x] Push notifications for clarifications (WorkManager background polling)
+- [x] Offline note queue (persisted, auto-syncs on reconnect)
 
-### Phase 6: Harness Expansion
+### Phase 6: Harness Expansion (NEXT)
 - [ ] Expand dispatch categories (db_add, db_remove, db_query, reminder, journal, batch)
 - [ ] Reminder dispatch path: "remind me at 3pm" → schedule notification via server push
 - [ ] Bespoke fast-path toolchains with schema injection for database ops
@@ -99,6 +98,7 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [ ] Desktop PWA or native wrapper
 - [ ] Multi-user support (2 users, lightweight auth)
 - [ ] File attachments (raw:// links in brain files)
+- [ ] Local voice-to-text in Android app (on-device model)
 - [ ] CLI client
 
 ---
