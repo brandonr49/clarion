@@ -74,10 +74,18 @@ class NoteDispatcher:
 
         # Hard-coded fast paths that don't need LLM classification
         if note.input_method == "ui_action":
+            # UI actions include context about which list they came from
+            source_list = note.metadata.get("source_list", "")
+            target_files = []
+            if source_list:
+                # Try to find the brain file matching the source list context
+                targets = self._find_files_for_context(source_list)
+                target_files = targets
             return DispatchResult(
                 dispatch_type=DispatchType.LIST_REMOVE,
                 tier=Tier.FAST,
-                reasoning="UI action — structured interaction",
+                target_files=target_files,
+                reasoning=f"UI action — checkbox interaction (source: {source_list or 'unknown'})",
             )
 
         if note.input_method == "priming":
@@ -105,6 +113,23 @@ class NoteDispatcher:
                 tier=Tier.STANDARD,
                 reasoning=f"Classification failed ({e}), defaulting to full LLM",
             )
+
+    def _find_files_for_context(self, context: str) -> list[str]:
+        """Find brain files matching a UI context string like 'Grocery List > Costco'."""
+        index = self._brain.read_index()
+        if not index:
+            return []
+
+        context_words = set(re.findall(r'\b\w{3,}\b', context.lower()))
+        matches = []
+        for line in index.splitlines():
+            path_match = re.search(r'`([^`]+\.(md|db|json))`', line)
+            if path_match:
+                line_words = set(re.findall(r'\b\w{3,}\b', line.lower()))
+                if context_words & line_words:
+                    matches.append(path_match.group(1))
+
+        return matches[:3]
 
     async def _llm_classify(
         self, provider: LLMProvider, note: RawNote

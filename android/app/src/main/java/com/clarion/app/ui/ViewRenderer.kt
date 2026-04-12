@@ -22,6 +22,7 @@ fun ViewRenderer(
     onInteraction: (String) -> Unit = {},
 ) {
     val type = view["type"]?.jsonPrimitive?.contentOrNull ?: "markdown"
+    val viewTitle = view["title"]?.jsonPrimitive?.contentOrNull ?: ""
 
     Card(
         modifier = Modifier
@@ -44,7 +45,7 @@ fun ViewRenderer(
             }
 
             when (type) {
-                "checklist" -> ChecklistRenderer(view, onInteraction)
+                "checklist" -> ChecklistRenderer(view, viewTitle, onInteraction)
                 "table" -> TableRenderer(view)
                 "key_value" -> KeyValueRenderer(view)
                 "markdown" -> MarkdownRenderer(view)
@@ -56,7 +57,7 @@ fun ViewRenderer(
 }
 
 @Composable
-private fun ChecklistRenderer(view: JsonObject, onInteraction: (String) -> Unit) {
+private fun ChecklistRenderer(view: JsonObject, viewTitle: String, onInteraction: (String) -> Unit) {
     val sections = view["sections"]?.jsonArray ?: return
 
     sections.forEach { sectionEl ->
@@ -95,7 +96,13 @@ private fun ChecklistRenderer(view: JsonObject, onInteraction: (String) -> Unit)
                     onCheckedChange = { newValue ->
                         isChecked = newValue
                         val action = if (newValue) "completed" else "uncompleted"
-                        onInteraction("$action: $label")
+                        // Include context: list name, section, and item
+                        val context = listOfNotNull(
+                            viewTitle.takeIf { it.isNotBlank() },
+                            heading?.takeIf { it.isNotBlank() },
+                        ).joinToString(" > ")
+                        val contextSuffix = if (context.isNotBlank()) " [from: $context]" else ""
+                        onInteraction("$action: $label$contextSuffix")
                     },
                     modifier = Modifier.size(36.dp),
                     colors = CheckboxDefaults.colors(

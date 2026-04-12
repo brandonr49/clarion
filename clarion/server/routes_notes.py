@@ -126,6 +126,7 @@ async def get_note_status(note_id: str, request: Request):
         "status": note.status,
         "created_at": note.created_at,
         "processed_at": note.processed_at,
+        "summary": note.metadata.get("_processing_summary"),
     }
 
 

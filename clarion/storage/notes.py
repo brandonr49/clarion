@@ -217,14 +217,32 @@ class NoteStore:
             return None
         return _row_to_note(row)
 
-    async def mark_processed(self, note_id: str) -> None:
-        """Mark a note as successfully processed."""
+    async def mark_processed(self, note_id: str, summary: str | None = None) -> None:
+        """Mark a note as successfully processed, with an optional processing summary."""
         now = datetime.now(timezone.utc).isoformat()
         db = self._db.connection
-        await db.execute(
-            "UPDATE raw_notes SET status = 'processed', processed_at = ? WHERE id = ?",
-            (now, note_id),
-        )
+
+        if summary:
+            # Store the summary in metadata so the client can see what happened
+            cursor = await db.execute("SELECT metadata FROM raw_notes WHERE id = ?", (note_id,))
+            row = await cursor.fetchone()
+            if row:
+                meta = json.loads(row["metadata"])
+                meta["_processing_summary"] = summary
+                await db.execute(
+                    "UPDATE raw_notes SET status = 'processed', processed_at = ?, metadata = ? WHERE id = ?",
+                    (now, json.dumps(meta), note_id),
+                )
+            else:
+                await db.execute(
+                    "UPDATE raw_notes SET status = 'processed', processed_at = ? WHERE id = ?",
+                    (now, note_id),
+                )
+        else:
+            await db.execute(
+                "UPDATE raw_notes SET status = 'processed', processed_at = ? WHERE id = ?",
+                (now, note_id),
+            )
         await db.commit()
 
     async def mark_failed(self, note_id: str, error: str) -> None:

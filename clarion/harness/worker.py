@@ -39,15 +39,18 @@ async def processing_worker(
 
             try:
                 result = await harness.process_note(note)
-                await note_store.mark_processed(note.id)
+                await note_store.mark_processed(
+                    note.id, summary=result.content
+                )
 
                 duration = int((time.monotonic() - start_time) * 1000)
                 logger.info(
-                    "Note %s processed: %d tool calls, %dms, model=%s",
+                    "Note %s processed: %d tool calls, %dms, model=%s — %s",
                     note.id,
                     result.tool_calls_made,
                     duration,
                     result.model_used,
+                    result.content[:100],
                 )
 
                 # Log the invocation

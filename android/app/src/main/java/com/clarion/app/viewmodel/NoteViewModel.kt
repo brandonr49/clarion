@@ -80,21 +80,55 @@ class NoteViewModel : ViewModel() {
                 val response = currentApi.createNote(NoteCreate(content = content))
                 submitState = SubmitState.Success(response.note_id)
                 noteText = ""
-                kotlinx.coroutines.delay(1500)
-                submitState = SubmitState.Idle
+
+                // Poll for processing summary (up to 30s)
+                pollForSummary(currentApi, response.note_id)
             } catch (e: Exception) {
                 submitState = SubmitState.Error(friendlyError(e))
             }
         }
     }
 
+    private suspend fun pollForSummary(api: ClarionApi, noteId: String) {
+        for (i in 0 until 15) {
+            kotlinx.coroutines.delay(2000)
+            try {
+                val status = api.getNoteStatus(noteId)
+                if (status.status == "processed" && status.summary != null) {
+                    submitState = SubmitState.Success(status.summary)
+                    kotlinx.coroutines.delay(3000)
+                    submitState = SubmitState.Idle
+                    return
+                }
+                if (status.status == "failed") {
+                    submitState = SubmitState.Error(status.summary ?: "Processing failed")
+                    return
+                }
+            } catch (_: Exception) {
+                break
+            }
+        }
+        // Timed out waiting for processing — just clear
+        submitState = SubmitState.Idle
+    }
+
     fun submitInteraction(content: String) {
         val currentApi = api ?: return
         viewModelScope.launch {
             try {
+                // Extract context hint if present: "completed: Item [from: List > Section]"
+                val contextMatch = Regex("""\[from: (.+)]$""").find(content)
+                val cleanContent = content.replace(Regex("""\s*\[from: .+]$"""), "")
+                val metadata = if (contextMatch != null) {
+                    mapOf("source_list" to contextMatch.groupValues[1])
+                } else {
+                    emptyMap()
+                }
+
                 currentApi.createNote(NoteCreate(
-                    content = content,
+                    content = cleanContent,
                     input_method = "ui_action",
+                    metadata = metadata,
                 ))
             } catch (_: Exception) {
                 // Silent — interaction feedback is best-effort

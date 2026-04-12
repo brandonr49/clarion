@@ -24,7 +24,7 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Basic web UI (text box + submit + note list + query)
 - [x] LLM harness: provider abstraction (Ollama, Claude, OpenAI, Mock)
 - [x] LLM harness: tool-use agent loop
-- [x] Built-in tool set (14 brain tools)
+- [x] Built-in tool set (14 brain file tools + 7 database tools)
 - [x] Processing pipeline: note -> queue -> LLM -> brain update
 - [x] Brain bootstrap from empty state
 
@@ -40,48 +40,63 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Tool filtering by task type (queries get read-only tools only)
 - [x] Double-layer enforcement (hidden from LLM + blocked at execution)
 - [x] Post-processing validation (must-write, must-read, index consistency)
-- [x] Auto-retry on validation failure with specific feedback
+- [x] Auto-retry on validation failure with specific feedback prompts
 - [x] Auto-wrap raw text in markdown view fallback
-- [x] Brain database tools (7 CRUD tools with schema versioning)
+- [x] Brain database tools with schema versioning (_schema_meta)
 - [x] Brain rebuild from raw with snapshot + API endpoint
 
-### Phase 4: Harness Hardening (IN PROGRESS)
-- [x] Note dispatch system (LIST_ADD, LIST_REMOVE, AMBIGUOUS, FULL_LLM)
-- [x] Ambiguity detection (terse notes trigger clarification)
+### Phase 4: Harness Hardening ✅
+- [x] LLM-based dispatcher (fast model classifies note intent)
+- [x] Dispatch categories: LIST_ADD, LIST_REMOVE, INFO_UPDATE, NEEDS_CLARIFICATION, FULL_LLM
 - [x] Multi-step query pipeline (classify -> read -> answer -> broaden -> not found)
-- [x] LLM-based dispatcher (fast model classifies notes, replaces old rule-based classifier)
 - [x] Tier escalation on failure (FAST -> STANDARD)
-- [x] Cloud model support (Claude API key from file, gitignored)
-- [x] Scale tests (30-50 notes, real-world note fixtures)
-- [x] Database schema versioning (_schema_meta table)
+- [x] Cloud model support (Claude API from file/env, gitignored)
+- [x] Scale tests (30-50 notes, real-world fixtures)
+- [x] Intent-focused prompts (interpret user goal, transform not store)
+- [x] Index quality guidelines (no content in index, philosophy section, tags)
+- [x] Retry-specific prompt files (retry_no_tools.md, retry_no_index.md)
+
+### Phase 5: Android App (IN PROGRESS)
+- [x] Native Android app (Kotlin + Jetpack Compose)
+- [x] Fast text input (open -> type -> submit)
+- [x] Tabbed UI (Note tab + Ask tab)
+- [x] Query with structured view rendering (checklist, table, key_value, markdown, composite)
+- [x] Interactive checkboxes (check -> submit note -> remove from list)
+- [x] Checkbox context metadata (source list + section passed to server)
+- [x] Processing confirmation (polls for LLM summary, shows what changed)
+- [x] Settings screen (server URL config, connection test)
+- [x] Dark theme matching web UI
+- [x] Network security (cleartext HTTP for local network)
+- [ ] Local voice-to-text (on-device model)
+- [ ] Home screen widgets (note input + query dashboard)
+- [ ] Push notifications for clarifications
+- [ ] Offline note queue
+
+### Phase 6: Harness Expansion
 - [ ] Expand dispatch categories (db_add, db_remove, db_query, reminder, journal, batch)
 - [ ] Bespoke fast-path toolchains with schema injection for database ops
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
+- [ ] Brain reorganization jobs (periodic large-model structure review)
+- [ ] Data format evolution (LLM migrates growing markdown lists to databases)
 - [ ] Semantic validation (does query response address the question?)
 - [ ] Harness telemetry (success rates per task type, model, prompt)
-- [ ] Brain reorganization jobs (periodic large-model structure review)
 
-### Phase 5: Android App
-- [ ] Native Android app (Kotlin + Jetpack Compose)
-- [ ] Fast text input (open -> type -> submit)
-- [ ] Local voice-to-text (on-device model)
-- [ ] Home screen widgets (input + dashboard)
-- [ ] Push notifications for clarifications
-
-### Phase 6: Education Mode + Proactive Assistant
-- [ ] LLM follow-up questions on new notes
+### Phase 7: Education Mode + Proactive Assistant
+- [ ] LLM follow-up questions on new notes (proactive, not just reactive)
 - [ ] Pattern detection (analyze note/query history)
-- [ ] Cross-domain reasoning
+- [ ] Cross-domain reasoning (cooking impacts groceries, etc.)
 - [ ] LLM-created tools (sandbox, validation, versioning)
 - [ ] LLM-scheduled cron jobs
 
-### Phase 7: Polish
+### Phase 8: Polish
+- [ ] Web UI: show recent queries alongside recent notes
+- [ ] Duplicate detection: LLM reads target file before writing, skips if present
 - [ ] Smart view caching
 - [ ] Persistent dashboards
 - [ ] Brain file browser in Android app (read-only, cached)
 - [ ] Cache most recent brain state in Android app
 - [ ] Desktop PWA or native wrapper
-- [ ] Multi-user support (2 users)
+- [ ] Multi-user support (2 users, lightweight auth)
 - [ ] File attachments (raw:// links in brain files)
 - [ ] CLI client
 
@@ -92,9 +107,27 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 1. **The brain is rebuildable** — raw notes are the source of truth, the brain is derived
 2. **The LLM is the organizer, not the user** — users dump thoughts, the LLM structures them
 3. **Interactions are notes** — UI actions flow through the system as raw input
-4. **Safe by construction** — make invalid states unrepresentable, don't rely on runtime checks
+4. **Safe by construction** — make invalid states unrepresentable
 5. **Harness first, scaffold everything else** — the LLM tool loop is the core
-6. **Enforce in code, not prompts** — prompts suggest, code enforces. Tool filtering, validation, retry
+6. **Enforce in code, not prompts** — prompts suggest, code enforces
 7. **Dispatch to fast paths** — common operations get bespoke toolchains, big thinking for novel input
-8. **Feed the model everything** — more context = better assistance
-9. **The LLM owns the brain** — taxonomy, format, organization are the LLM's decisions
+8. **Interpret intent, transform data** — don't store notes, transform them into brain state changes
+9. **The index is critical infrastructure** — descriptive, navigable, tagged, never bloated with content
+10. **Feed the model everything** — more context = better assistance
+11. **The LLM owns the brain** — taxonomy, format, organization are the LLM's decisions
+
+---
+
+## Project Stats
+
+| Metric | Count |
+|--------|-------|
+| Python source | 33 files, ~4,500 LOC |
+| Kotlin source | 9 files, ~1,000 LOC |
+| Tests | 114 across 12 files, ~3,500 LOC |
+| Prompts | 7 files |
+| Brain tools | 21 (14 file + 7 database) |
+| API endpoints | 9 |
+| Design docs | 9 |
+| LLM providers | 4 (Ollama, Claude, OpenAI, Mock) |
+| View types | 6 (checklist, table, key_value, markdown, mermaid, composite) |
