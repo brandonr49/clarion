@@ -105,7 +105,13 @@ private fun NoteTab(viewModel: NoteViewModel) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             when (val state = viewModel.submitState) {
-                is SubmitState.Idle -> Spacer(Modifier.weight(1f))
+                is SubmitState.Idle -> {
+                    if (viewModel.queuedCount > 0) {
+                        Text("${viewModel.queuedCount} queued offline", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
                 is SubmitState.Submitting -> Text("Sending...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.weight(1f))
                 is SubmitState.Success -> Text(state.noteId, color = MaterialTheme.colorScheme.tertiary, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 2)
                 is SubmitState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, fontSize = 14.sp, modifier = Modifier.weight(1f))

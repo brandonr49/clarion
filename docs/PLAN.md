@@ -74,6 +74,7 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 
 ### Phase 6: Harness Expansion
 - [ ] Expand dispatch categories (db_add, db_remove, db_query, reminder, journal, batch)
+- [ ] Reminder dispatch path: "remind me at 3pm" → schedule notification via server push
 - [ ] Bespoke fast-path toolchains with schema injection for database ops
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
 - [ ] Brain reorganization jobs (periodic large-model structure review)

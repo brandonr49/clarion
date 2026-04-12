@@ -5,9 +5,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import com.clarion.app.data.ApiClient
 import com.clarion.app.data.ClarionApi
 import com.clarion.app.data.NoteCreate
+import com.clarion.app.data.OfflineQueue
 import com.clarion.app.data.QueryRequest
 import com.clarion.app.data.QueryResponse
 import kotlinx.coroutines.launch
@@ -34,7 +37,7 @@ sealed class ConnectionState {
     data class Failed(val message: String) : ConnectionState()
 }
 
-class NoteViewModel : ViewModel() {
+class NoteViewModel(application: Application) : AndroidViewModel(application) {
     var noteText by mutableStateOf("")
         private set
 
@@ -50,8 +53,12 @@ class NoteViewModel : ViewModel() {
     var connectionState: ConnectionState by mutableStateOf(ConnectionState.Unknown)
         private set
 
+    var queuedCount by mutableStateOf(0)
+        private set
+
     private var api: ClarionApi? = null
     private var currentUrl: String = ""
+    private val offlineQueue = OfflineQueue(application)
 
     fun updateNoteText(text: String) {
         noteText = text
@@ -67,6 +74,7 @@ class NoteViewModel : ViewModel() {
             api = ApiClient.create(url)
             connectionState = ConnectionState.Unknown
         }
+        queuedCount = offlineQueue.size
     }
 
     fun submitNote() {
@@ -76,16 +84,48 @@ class NoteViewModel : ViewModel() {
 
         submitState = SubmitState.Submitting
         viewModelScope.launch {
+            val note = NoteCreate(content = content)
             try {
-                val response = currentApi.createNote(NoteCreate(content = content))
+                val response = currentApi.createNote(note)
                 submitState = SubmitState.Success(response.note_id)
                 noteText = ""
+
+                // Flush any queued notes now that we have connectivity
+                flushQueue(currentApi)
 
                 // Poll for processing summary (up to 30s)
                 pollForSummary(currentApi, response.note_id)
             } catch (e: Exception) {
-                submitState = SubmitState.Error(friendlyError(e))
+                // Server unreachable — queue locally
+                offlineQueue.enqueue(note)
+                queuedCount = offlineQueue.size
+                submitState = SubmitState.Success("Saved offline (${offlineQueue.size} queued)")
+                noteText = ""
+                kotlinx.coroutines.delay(2000)
+                submitState = SubmitState.Idle
             }
+        }
+    }
+
+    private suspend fun flushQueue(api: ClarionApi) {
+        if (offlineQueue.isEmpty) return
+        var flushed = 0
+        while (!offlineQueue.isEmpty) {
+            val note = offlineQueue.removeFirst() ?: break
+            try {
+                api.createNote(note)
+                flushed++
+            } catch (_: Exception) {
+                // Server went down again — re-queue and stop
+                offlineQueue.enqueue(note)
+                break
+            }
+        }
+        queuedCount = offlineQueue.size
+        if (flushed > 0) {
+            submitState = SubmitState.Success("Synced $flushed queued note(s)")
+            kotlinx.coroutines.delay(2000)
+            submitState = SubmitState.Idle
         }
     }
 
