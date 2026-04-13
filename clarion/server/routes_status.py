@@ -58,6 +58,14 @@ async def get_insights(request: Request):
     return get_patterns(brain)
 
 
+@router.get("/jobs")
+async def get_jobs(request: Request):
+    """List all scheduled jobs."""
+    from clarion.harness.scheduled_jobs import list_jobs
+    brain = request.app.state.brain
+    return {"jobs": list_jobs(brain)}
+
+
 @router.get("/reminders")
 async def get_reminders(request: Request):
     """Get pending reminders."""

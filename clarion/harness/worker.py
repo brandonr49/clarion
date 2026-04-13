@@ -188,6 +188,70 @@ async def reminder_checker(
             await asyncio.sleep(check_interval)
 
 
+async def job_checker(
+    db: Database,
+    brain: "BrainManager",
+    harness: "Harness",
+    check_interval: float = 300.0,
+) -> None:
+    """Background task that checks for and executes due scheduled jobs.
+
+    Runs every `check_interval` seconds (default 5 minutes).
+    """
+    from clarion.harness.scheduled_jobs import get_due_jobs, mark_job_run
+
+    logger.info("Job checker started (interval=%.0fs)", check_interval)
+
+    while True:
+        try:
+            due = get_due_jobs(brain)
+            for job in due:
+                name = job.get("name", "?")
+                action_type = job.get("action_type", "prompt")
+                action = job.get("action", "")
+
+                logger.info("Running scheduled job: %s (%s)", name, action_type)
+
+                try:
+                    if action_type == "tool" and action:
+                        # Execute a registered tool
+                        result = await harness._registry.execute(
+                            action, {}, task_type="brain_maintenance"
+                        )
+                        logger.info("Job %s tool result: %s", name, result[:100])
+
+                    elif action_type == "prompt" and action:
+                        # Run the prompt as a note through the harness
+                        from clarion.storage.notes import RawNote
+                        fake_note = RawNote(
+                            id=f"job-{name}",
+                            content=action,
+                            source_client="system",
+                            input_method="typed",
+                            location=None,
+                            metadata={"_job": name},
+                            created_at=datetime.now(timezone.utc).isoformat(),
+                            status="processing",
+                        )
+                        result = await harness.process_note(fake_note)
+                        logger.info("Job %s prompt result: %s", name, result.content[:100])
+
+                    mark_job_run(brain, name)
+
+                except Exception as e:
+                    logger.error("Scheduled job %s failed: %s", name, e)
+                    mark_job_run(brain, name)  # still mark as run to avoid infinite retries
+
+            await asyncio.sleep(check_interval)
+
+        except asyncio.CancelledError:
+            logger.info("Job checker shutting down")
+            break
+        except Exception as e:
+            logger.error("Job checker error: %s", e, exc_info=True)
+            await asyncio.sleep(check_interval)
+
+
 async def _log_invocation(
     db: Database,
     task_type: str,

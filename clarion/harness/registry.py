@@ -44,6 +44,8 @@ WRITE_TOOLS = frozenset({
     "create_brain_db",
     "brain_db_insert",
     "brain_db_update",
+    "create_custom_tool",
+    "schedule_job",
     "brain_db_delete",
 })
 
@@ -82,6 +84,7 @@ class ToolRegistry:
         """Return tool definitions, optionally filtered by task type.
 
         If task_type is provided, only tools allowed for that task type are returned.
+        Custom tools (LLM-created) are included for note_processing and brain_maintenance.
         The LLM never sees tools it's not allowed to call.
         """
         if task_type is None:
@@ -92,10 +95,14 @@ class ToolRegistry:
             logger.warning("Unknown task type '%s', returning all tools", task_type)
             return [tool.definition for tool in self._tools.values()]
 
+        # Include tools in the allowed set, plus any custom/library tools for all task types.
+        # Custom tools are safe: they access the brain through a proxy, not raw filesystem.
+        all_known = READ_TOOLS | WRITE_TOOLS | DB_READ_TOOLS | CLARIFICATION_TOOLS
+
         return [
             tool.definition
             for tool in self._tools.values()
-            if tool.name in allowed
+            if tool.name in allowed or tool.name not in all_known
         ]
 
     async def execute(
@@ -110,12 +117,17 @@ class ToolRegistry:
         # Enforce access control
         if task_type is not None:
             allowed = TASK_TOOL_ACCESS.get(task_type)
+            all_known = READ_TOOLS | WRITE_TOOLS | DB_READ_TOOLS | CLARIFICATION_TOOLS
+            is_custom = name not in all_known and name in self._tools
+
             if allowed is not None and name not in allowed:
-                logger.warning(
-                    "Tool '%s' blocked: not allowed for task type '%s'",
-                    name, task_type,
-                )
-                return f"Error: tool '{name}' is not available for this operation."
+                # Custom/library tools are always allowed (they use brain proxy, not raw fs)
+                if not is_custom:
+                    logger.warning(
+                        "Tool '%s' blocked: not allowed for task type '%s'",
+                        name, task_type,
+                    )
+                    return f"Error: tool '{name}' is not available for this operation."
 
         tool = self._tools.get(name)
         if tool is None:

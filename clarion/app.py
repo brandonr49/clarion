@@ -71,12 +71,17 @@ async def lifespan(app: FastAPI):
     )
 
     # 12. Start reminder checker (checks every 60s for due reminders)
-    from clarion.harness.worker import reminder_checker
+    from clarion.harness.worker import reminder_checker, job_checker
     reminder_task = asyncio.create_task(
         reminder_checker(db, brain, check_interval=60.0)
     )
 
-    # 13. Store in app state
+    # 13. Start scheduled job checker (checks every 5 min)
+    job_task = asyncio.create_task(
+        job_checker(db, brain, harness, check_interval=300.0)
+    )
+
+    # 14. Store in app state
     app.state.db = db
     app.state.note_store = note_store
     app.state.harness = harness
@@ -95,14 +100,12 @@ async def lifespan(app: FastAPI):
     # Shutdown
     worker_task.cancel()
     reminder_task.cancel()
-    try:
-        await worker_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await reminder_task
-    except asyncio.CancelledError:
-        pass
+    job_task.cancel()
+    for task in (worker_task, reminder_task, job_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await db.close()
     logger.info("Clarion shut down")
 

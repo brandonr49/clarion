@@ -99,9 +99,13 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Brain insights storage (`_insights/patterns.json`, GET /brain/insights)
 - [x] Design docs: education-mode.md, theory-of-memory.md, brain-intelligence.md
 
-### Phase 7b: Advanced Intelligence (remaining)
-- [ ] LLM-created tools (sandbox, validation, versioning)
-- [ ] LLM-scheduled cron jobs (beyond reminders — recurring analysis jobs)
+### Phase 7b: Advanced Intelligence ✅
+- [x] LLM-created tools: sandboxed execution, versioned storage in brain, loaded on startup
+- [x] create_custom_tool built-in tool for LLM to write and register new tools
+- [x] LLM-scheduled cron jobs: schedule_job tool, stored in brain, background checker
+- [x] Job schedules: hourly, daily, weekly, every_N_hours
+- [x] Jobs can call tools or execute LLM prompts
+- [x] API: GET /jobs, GET /brain/insights
 
 ### Phase 8: Polish
 - [ ] Web UI: show recent queries alongside recent notes

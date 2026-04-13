@@ -441,6 +441,72 @@ class RequestClarification(BrainTool):
         raise ClarificationRequested(question)
 
 
+class CreateCustomToolTool(BrainTool):
+    """Tool that lets the LLM create new custom tools."""
+
+    def __init__(self, brain: BrainManager, registry: "ToolRegistry"):
+        super().__init__(
+            name="create_custom_tool",
+            description=(
+                "Create a new custom tool that will be available in future invocations. "
+                "The tool implementation is a Python function body that receives "
+                "'args' (dict of arguments) and 'brain' (read-only brain access with "
+                "read_file, search, list_directory, read_index methods). "
+                "The function should return a string result."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Tool name (snake_case, e.g., 'weekly_grocery_summary')",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "What the tool does",
+                    },
+                    "parameters": {
+                        "type": "object",
+                        "description": "JSON Schema for tool arguments",
+                    },
+                    "implementation": {
+                        "type": "string",
+                        "description": (
+                            "Python function body. Receives 'args' and 'brain'. "
+                            "Return a string. Example: "
+                            "'items = brain.read_file(\"shopping/grocery_list.md\")\\n"
+                            "return f\"Grocery items: {items}\"'"
+                        ),
+                    },
+                },
+                "required": ["name", "description", "implementation"],
+            },
+        )
+        self._brain = brain
+        self._registry = registry
+
+    async def execute(self, arguments: dict) -> str:
+        name = arguments.get("name", "")
+        description = arguments.get("description", "")
+        parameters = arguments.get("parameters", {"type": "object", "properties": {}})
+        implementation = arguments.get("implementation", "")
+
+        if not name or not implementation:
+            return "Error: name and implementation are required"
+
+        # Validate the name
+        if not name.replace("_", "").isalnum():
+            return "Error: tool name must be alphanumeric with underscores"
+
+        from clarion.harness.custom_tools import save_custom_tool
+        tool = save_custom_tool(self._brain, name, description, parameters, implementation)
+
+        # Register it immediately so it's available in this session
+        self._registry.register(tool)
+
+        return f"Custom tool '{name}' created and registered (v{tool._version})"
+
+
 class ClarificationRequested(Exception):
     """Raised by the request_clarification tool to pause processing."""
 
@@ -486,6 +552,22 @@ def register_all_tools(
     # Brain database tools
     from clarion.brain.db_tools import register_db_tools
     register_db_tools(registry, brain)
+
+    # LLM-created custom tools (loaded from brain)
+    from clarion.harness.custom_tools import load_custom_tools
+    for custom_tool in load_custom_tools(brain):
+        registry.register(custom_tool)
+
+    # Tool for LLM to create new custom tools
+    registry.register(CreateCustomToolTool(brain, registry))
+
+    # Tool for LLM to schedule recurring jobs
+    from clarion.harness.scheduled_jobs import ScheduleJobTool
+    registry.register(ScheduleJobTool(brain))
+
+    # Hand-written library tools (always available)
+    from clarion.harness.tool_library import register_library_tools
+    register_library_tools(registry, brain, note_store)
 
 
 # Avoid circular import — ToolRegistry imported at call time
