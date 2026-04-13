@@ -81,14 +81,13 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Query result caching (5 min TTL, invalidates on brain change, max 100 entries)
 - [x] Brain file staleness tracking (read/write timestamps, staleness report for maintenance)
 
-### Phase 6b: Harness Expansion (remaining)
-- [ ] Note-to-file attribution (track which raw notes contributed to each brain file;
-      store in separate section, read/write tools that include/exclude attribution)
-- [ ] Expand dispatch to db_add, db_remove, db_query with schema injection
+### Phase 6b: Harness Expansion ✅
+- [x] Database dispatch paths (db_add, db_remove) with schema injection into fast paths
+- [x] Semantic validation (fast model checks if query answer addresses the question)
+- [x] Harness telemetry (success rates per dispatch type, model, query; GET /telemetry)
+- [ ] Note-to-file attribution (low priority — complicates read/write tools significantly)
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
-- [ ] Data format evolution (LLM migrates growing markdown lists to databases)
-- [ ] Semantic validation (does query response address the question?)
-- [ ] Harness telemetry (success rates per task type, model, prompt)
+- [ ] Data format evolution (LLM migrates growing markdown lists to databases via brain review)
 
 ### Phase 7: Education Mode + Proactive Assistant
 - [ ] LLM follow-up questions on new notes (proactive, not just reactive)

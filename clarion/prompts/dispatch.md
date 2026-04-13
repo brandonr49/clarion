@@ -27,6 +27,18 @@ Examples:
 - "Sprint review moved to Thursday" → update meeting time
 - "switched from Ralphs to Trader Joe's" → update store preference
 
+**db_add** — The user wants to add an entry to a STRUCTURED collection stored as a database (.db file).
+Use this when the brain index shows a .db file for the relevant domain.
+Examples:
+- "I want to watch Inception" when `media/watchlist.db` exists → db_add to watchlist.db
+- "Add running to my habits" when `tracking/habits.db` exists → db_add to habits.db
+If no .db file exists for the domain, use list_add instead (the data lives in markdown).
+
+**db_remove** — The user is marking something done/completed in a database collection.
+Examples:
+- "Watched Inception, 8/10" when `media/watchlist.db` exists → db_remove (mark as watched)
+- "Finished the habit challenge" when `tracking/habits.db` exists → db_remove
+
 **reminder** — The user wants to be reminded about something at a specific time.
 Examples:
 - "remind me to call the dentist tomorrow" → reminder

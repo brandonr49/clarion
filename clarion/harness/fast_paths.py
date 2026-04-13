@@ -226,9 +226,168 @@ async def _handle_reminder(
     return summary, True
 
 
+# -- Database fast paths --
+
+DB_ADD_PROMPT = """\
+You are adding an entry to a database. The database schema is shown below.
+Given the user's note, extract the values for each column.
+
+You may reason about the values, but your final answer MUST start with "ANSWER:"
+followed by a JSON object with column names as keys:
+
+ANSWER:
+{"title": "Inception", "recommended_by": "Sarah", "watched": 0}
+
+Only include columns that have values. Optional/nullable columns can be omitted."""
+
+DB_REMOVE_PROMPT = """\
+You are updating or removing an entry in a database. The current entries and schema
+are shown below. Determine which entry to update and what changes to make.
+
+You may reason about the changes, but your final answer MUST start with "ANSWER:"
+followed by a JSON object:
+
+ANSWER:
+{"action": "update", "where": {"title": "Inception"}, "set": {"watched": 1, "rating": 8.5}}
+
+Or for deletion:
+ANSWER:
+{"action": "delete", "where": {"title": "Inception"}}"""
+
+
+async def _handle_db_add(
+    dispatch: DispatchResult,
+    note: RawNote,
+    brain: BrainManager,
+    router: ModelRouter,
+) -> tuple[str, bool] | None:
+    """Fast path: add entry to a brain database with schema injection."""
+    if not dispatch.target_files:
+        return None
+    target = dispatch.target_files[0]
+    if not target.endswith(".db"):
+        return None
+
+    # Load schema for context injection
+    from clarion.brain.db_tools import BrainDbSchema, BrainDbInsert
+    schema_tool = BrainDbSchema(brain)
+    schema_text = await schema_tool.execute({"db_path": target})
+
+    provider = router.get_provider(Tier.FAST)
+    messages = [
+        Message(role="system", content=DB_ADD_PROMPT),
+        Message(role="user", content=(
+            f"## Database: {target}\n\n## Schema\n{schema_text}\n\n"
+            f"## Note\n{note.content}"
+        )),
+    ]
+
+    response = await provider.complete(messages, temperature=0.0)
+    from clarion.harness.output_utils import extract_json_from_answer
+    row_data = extract_json_from_answer(response.content or "")
+    if not row_data:
+        return None
+
+    # Find the table name from schema
+    import json
+    try:
+        schema = json.loads(schema_text)
+        tables = schema.get("tables", {})
+        table_name = next(iter(tables.keys())) if tables else None
+    except (json.JSONDecodeError, StopIteration):
+        return None
+
+    if not table_name:
+        return None
+
+    insert_tool = BrainDbInsert(brain)
+    result = await insert_tool.execute({
+        "db_path": target,
+        "table": table_name,
+        "row": row_data,
+    })
+
+    logger.info("Fast path db_add: %s -> %s", target, result)
+    return f"Added to {target}: {result}", True
+
+
+async def _handle_db_remove(
+    dispatch: DispatchResult,
+    note: RawNote,
+    brain: BrainManager,
+    router: ModelRouter,
+) -> tuple[str, bool] | None:
+    """Fast path: update/remove entry in a brain database."""
+    if not dispatch.target_files:
+        return None
+    target = dispatch.target_files[0]
+    if not target.endswith(".db"):
+        return None
+
+    # Load schema and current entries for context
+    from clarion.brain.db_tools import BrainDbSchema, BrainDbQuery, BrainDbUpdate, BrainDbDelete
+    schema_tool = BrainDbSchema(brain)
+    schema_text = await schema_tool.execute({"db_path": target})
+
+    import json
+    try:
+        schema = json.loads(schema_text)
+        tables = schema.get("tables", {})
+        table_name = next(iter(tables.keys())) if tables else None
+    except (json.JSONDecodeError, StopIteration):
+        return None
+
+    if not table_name:
+        return None
+
+    # Get current entries
+    query_tool = BrainDbQuery(brain)
+    entries_text = await query_tool.execute({"db_path": target, "table": table_name, "limit": 50})
+
+    provider = router.get_provider(Tier.FAST)
+    messages = [
+        Message(role="system", content=DB_REMOVE_PROMPT),
+        Message(role="user", content=(
+            f"## Database: {target}\n\n## Schema\n{schema_text}\n\n"
+            f"## Current entries\n{entries_text}\n\n"
+            f"## Note\n{note.content}"
+        )),
+    ]
+
+    response = await provider.complete(messages, temperature=0.0)
+    from clarion.harness.output_utils import extract_json_from_answer
+    action_data = extract_json_from_answer(response.content or "")
+    if not action_data:
+        return None
+
+    action = action_data.get("action", "update")
+    where = action_data.get("where", {})
+    if not where:
+        return None
+
+    if action == "delete":
+        delete_tool = BrainDbDelete(brain)
+        result = await delete_tool.execute({
+            "db_path": target, "table": table_name, "where": where,
+        })
+    else:
+        set_vals = action_data.get("set", {})
+        if not set_vals:
+            return None
+        update_tool = BrainDbUpdate(brain)
+        result = await update_tool.execute({
+            "db_path": target, "table": table_name, "where": where, "set": set_vals,
+        })
+
+    logger.info("Fast path db_remove: %s -> %s", target, result)
+    return f"Updated {target}: {result}", True
+
+
 FAST_PATH_HANDLERS = {
     DispatchType.LIST_ADD: _handle_list_add,
     DispatchType.LIST_REMOVE: _handle_list_remove,
     DispatchType.INFO_UPDATE: _handle_info_update,
     DispatchType.REMINDER: _handle_reminder,
+    DispatchType.DB_ADD: _handle_db_add,
+    DispatchType.DB_REMOVE: _handle_db_remove,
 }

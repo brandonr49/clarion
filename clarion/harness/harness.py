@@ -51,11 +51,13 @@ class Harness:
         prompts: dict[str, str],
     ):
         from clarion.harness.query_cache import QueryCache
+        from clarion.harness.telemetry import HarnessTelemetry
 
         self._router = router
         self._registry = registry
         self._brain = brain
         self._query_cache = QueryCache(ttl_seconds=300.0)
+        self.telemetry = HarnessTelemetry()
         self._config = config
         self._prompts = prompts
 
@@ -236,6 +238,16 @@ class Harness:
             prompts=self._prompts,
         )
 
+        # Semantic validation: quick check if the answer addresses the query
+        # Skip for empty brain / not-found responses
+        answer_lower = answer.lower() if answer else ""
+        skip_validation = any(phrase in answer_lower for phrase in
+                              ["could not find", "empty", "no information", "not found"])
+        if answer and not skip_validation:
+            validation = await self._validate_query_relevance(query, answer)
+            if validation:
+                notes.append(f"semantic: {validation}")
+
         # Cache the result
         self._query_cache.put(query, source_client, brain_hash, answer, view, notes)
 
@@ -375,6 +387,38 @@ class Harness:
         if issues:
             return ValidationResult(passed=True, issues=issues)
         return ValidationResult(passed=True)
+
+    # -- Semantic Validation --
+
+    async def _validate_query_relevance(self, query: str, answer: str) -> str | None:
+        """Quick check: does the answer address the query?
+
+        Uses the fast model to evaluate. Returns a note string if issues found,
+        or None if the answer seems relevant.
+        """
+        try:
+            provider = self._router.get_provider(Tier.FAST)
+            messages = [
+                Message(role="system", content=(
+                    "Does this answer address the user's question? "
+                    "Reply with ONLY 'yes' or 'no: <reason>'."
+                )),
+                Message(role="user", content=(
+                    f"Question: {query}\n\nAnswer: {answer[:500]}"
+                )),
+            ]
+            response = await provider.complete(messages, temperature=0.0)
+            from clarion.harness.output_utils import extract_answer
+            result = extract_answer(response.content or "").strip().lower()
+
+            if result.startswith("no"):
+                reason = result[3:].strip() if len(result) > 3 else "answer may not address query"
+                logger.warning("Semantic validation failed: %s", reason)
+                return f"may_not_address_query: {reason}"
+        except Exception as e:
+            logger.debug("Semantic validation skipped: %s", e)
+
+        return None
 
     # -- Prompt Building --
 

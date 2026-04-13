@@ -22,6 +22,13 @@ async def get_status(request: Request):
     )
 
 
+@router.get("/telemetry")
+async def get_telemetry(request: Request):
+    """Get harness performance telemetry."""
+    harness = request.app.state.harness
+    return harness.telemetry.get_report()
+
+
 @router.get("/reminders")
 async def get_reminders(request: Request):
     """Get pending reminders."""

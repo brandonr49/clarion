@@ -31,6 +31,8 @@ class DispatchType(Enum):
     LIST_ADD = "list_add"
     LIST_REMOVE = "list_remove"
     INFO_UPDATE = "info_update"
+    DB_ADD = "db_add"          # add entry to a brain database
+    DB_REMOVE = "db_remove"    # remove/update entry in a brain database
     REMINDER = "reminder"
     NEEDS_CLARIFICATION = "needs_clarification"
     FULL_LLM = "full_llm"
@@ -206,6 +208,8 @@ class NoteDispatcher:
             "list_add": DispatchType.LIST_ADD,
             "list_remove": DispatchType.LIST_REMOVE,
             "info_update": DispatchType.INFO_UPDATE,
+            "db_add": DispatchType.DB_ADD,
+            "db_remove": DispatchType.DB_REMOVE,
             "reminder": DispatchType.REMINDER,
             "needs_clarification": DispatchType.NEEDS_CLARIFICATION,
             "full_llm": DispatchType.FULL_LLM,
@@ -251,8 +255,10 @@ class NoteDispatcher:
             dispatch_type=DispatchType.FULL_LLM
         )
 
-        if primary.dispatch_type in (DispatchType.LIST_ADD, DispatchType.LIST_REMOVE,
-                                     DispatchType.INFO_UPDATE, DispatchType.REMINDER):
+        fast_types = (DispatchType.LIST_ADD, DispatchType.LIST_REMOVE,
+                      DispatchType.INFO_UPDATE, DispatchType.REMINDER,
+                      DispatchType.DB_ADD, DispatchType.DB_REMOVE)
+        if primary.dispatch_type in fast_types:
             tier = Tier.FAST
         else:
             tier = Tier.STANDARD
