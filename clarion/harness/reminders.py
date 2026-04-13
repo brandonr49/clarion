@@ -1,8 +1,15 @@
-"""Reminder system — stores and checks scheduled reminders.
+"""Reminder system — stores, schedules, and fires reminders.
 
 Reminders are stored in the brain at `_reminders/pending.json`.
-A background task checks for due reminders and creates clarification-like
-notifications for the client to display.
+A background task checks for due reminders and creates notifications.
+
+Flow:
+1. User says "remind me to X at Y time"
+2. Dispatcher routes to REMINDER fast path
+3. Fast LLM parses the reminder text and time expression
+4. A second LLM call resolves the time expression to an ISO timestamp
+5. Reminder stored with the resolved timestamp
+6. Background checker (in worker) fires due reminders as clarification records
 """
 
 from __future__ import annotations
@@ -31,25 +38,45 @@ If this is NOT a reminder, reply:
 ANSWER:
 {"is_reminder": false}"""
 
+RESOLVE_TIME_PROMPT = """\
+Convert a time expression to an ISO 8601 timestamp.
+
+The current date/time is: {now}
+
+Given the time expression, calculate the absolute timestamp.
+Examples:
+- "tomorrow" → next day at 9:00 AM
+- "tomorrow at 3pm" → next day at 15:00
+- "in 2 hours" → current time + 2 hours
+- "Friday" → next Friday at 9:00 AM
+- "next week" → next Monday at 9:00 AM
+- "in 30 minutes" → current time + 30 minutes
+
+Your final answer MUST start with "ANSWER:" followed by a JSON object:
+
+ANSWER:
+{"iso_timestamp": "2026-04-14T15:00:00Z", "description": "tomorrow at 3pm"}
+
+If you cannot determine the time, use tomorrow at 9am as default."""
+
 
 async def handle_reminder(
     note_content: str,
     brain: BrainManager,
     router: ModelRouter,
 ) -> str:
-    """Parse and store a reminder from a note. Returns summary."""
-    # Use fast model to parse the reminder
+    """Parse, schedule, and store a reminder from a note. Returns summary."""
     provider = router.get_provider(Tier.FAST)
+
+    # Step 1: Parse the reminder
     messages = [
         Message(role="system", content=PARSE_REMINDER_PROMPT),
         Message(role="user", content=note_content),
     ]
 
     response = await provider.complete(messages, temperature=0.0)
-    text = response.content or ""
-
     from clarion.harness.output_utils import extract_json_from_answer
-    data = extract_json_from_answer(text)
+    data = extract_json_from_answer(response.content or "")
 
     if data and not data.get("is_reminder", True):
         return "Not a reminder"
@@ -58,22 +85,59 @@ async def handle_reminder(
         reminder_text = data.get("reminder", note_content)
         when_text = data.get("when_text", "unspecified time")
     else:
-        # Fallback: store the note as-is
         reminder_text = note_content
         when_text = "unspecified time"
+
+    # Step 2: Resolve the time expression to an actual timestamp
+    now = datetime.now(timezone.utc)
+    due_at = await _resolve_time(provider, when_text, now)
 
     # Store the reminder
     reminders = _load_reminders(brain)
     reminders.append({
         "reminder": reminder_text,
         "when_text": when_text,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "due_at": due_at,
+        "created_at": now.isoformat(),
         "notified": False,
     })
     _save_reminders(brain, reminders)
 
-    logger.info("Reminder stored: '%s' for '%s'", reminder_text, when_text)
-    return f"Reminder set: {reminder_text} ({when_text})"
+    # Format a human-friendly summary
+    if due_at:
+        try:
+            due_dt = datetime.fromisoformat(due_at)
+            friendly = due_dt.strftime("%b %d at %I:%M %p")
+        except ValueError:
+            friendly = when_text
+    else:
+        friendly = when_text
+
+    logger.info("Reminder stored: '%s' due at %s", reminder_text, due_at or when_text)
+    return f"Reminder set: {reminder_text} ({friendly})"
+
+
+async def _resolve_time(provider, when_text: str, now: datetime) -> str | None:
+    """Resolve a natural language time expression to an ISO timestamp."""
+    if when_text in ("unspecified time", ""):
+        return None
+
+    prompt = RESOLVE_TIME_PROMPT.replace("{now}", now.isoformat())
+    messages = [
+        Message(role="system", content=prompt),
+        Message(role="user", content=when_text),
+    ]
+
+    try:
+        response = await provider.complete(messages, temperature=0.0)
+        from clarion.harness.output_utils import extract_json_from_answer
+        data = extract_json_from_answer(response.content or "")
+        if data:
+            return data.get("iso_timestamp")
+    except Exception as e:
+        logger.warning("Failed to resolve time '%s': %s", when_text, e)
+
+    return None
 
 
 def _load_reminders(brain: BrainManager) -> list[dict]:
@@ -96,9 +160,33 @@ def get_pending_reminders(brain: BrainManager) -> list[dict]:
     return [r for r in reminders if not r.get("notified", False)]
 
 
+def get_due_reminders(brain: BrainManager) -> list[tuple[int, dict]]:
+    """Get reminders that are due (past their due_at time and not notified).
+
+    Returns list of (index, reminder_dict).
+    """
+    now = datetime.now(timezone.utc)
+    reminders = _load_reminders(brain)
+    due = []
+    for i, r in enumerate(reminders):
+        if r.get("notified", False):
+            continue
+        due_at = r.get("due_at")
+        if due_at:
+            try:
+                due_dt = datetime.fromisoformat(due_at)
+                if due_dt <= now:
+                    due.append((i, r))
+            except ValueError:
+                continue
+        # Reminders without due_at are never auto-fired
+    return due
+
+
 def mark_reminder_notified(brain: BrainManager, index: int) -> None:
     """Mark a reminder as notified."""
     reminders = _load_reminders(brain)
     if 0 <= index < len(reminders):
         reminders[index]["notified"] = True
+        reminders[index]["notified_at"] = datetime.now(timezone.utc).isoformat()
         _save_reminders(brain, reminders)

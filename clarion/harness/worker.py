@@ -139,6 +139,55 @@ async def processing_worker(
             await asyncio.sleep(config.poll_interval)
 
 
+async def reminder_checker(
+    db: Database,
+    brain: "BrainManager",
+    check_interval: float = 60.0,
+) -> None:
+    """Background task that checks for due reminders and fires notifications.
+
+    Runs every `check_interval` seconds. When a reminder is due, creates a
+    clarification record so the Android notification system picks it up.
+    """
+    from clarion.harness.reminders import get_due_reminders, mark_reminder_notified
+
+    logger.info("Reminder checker started (interval=%.0fs)", check_interval)
+
+    while True:
+        try:
+            due = get_due_reminders(brain)
+            for index, reminder in due:
+                # Create a notification via the clarifications table
+                conn = db.connection
+                await conn.execute(
+                    """INSERT INTO clarifications (id, note_id, question, created_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (
+                        str(uuid4()),
+                        "reminder",  # not tied to a specific note
+                        f"⏰ Reminder: {reminder.get('reminder', '?')}",
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                await conn.commit()
+
+                mark_reminder_notified(brain, index)
+                logger.info(
+                    "Reminder fired: %s (was due at %s)",
+                    reminder.get("reminder", "?"),
+                    reminder.get("due_at", "?"),
+                )
+
+            await asyncio.sleep(check_interval)
+
+        except asyncio.CancelledError:
+            logger.info("Reminder checker shutting down")
+            break
+        except Exception as e:
+            logger.error("Reminder checker error: %s", e, exc_info=True)
+            await asyncio.sleep(check_interval)
+
+
 async def _log_invocation(
     db: Database,
     task_type: str,

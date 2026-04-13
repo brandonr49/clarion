@@ -41,6 +41,18 @@ This document is a placeholder for a deep design discussion about memory archite
 - Can we track what the user queries most and pre-optimize for those patterns?
 - How do we handle the user's life changing (new job, moved, new child)?
 
+### Category Evolution (Known Gap)
+Education mode extracts facts into `_user_profile/{category}.md` files, where the
+LLM freely chooses category names. But each extraction is independent — the second
+extraction doesn't look at what categories the first one created. This means:
+- Category names may be inconsistent across extractions (e.g., "work" vs "software_engineer")
+- Related facts may end up in different files
+- No consolidation happens automatically
+
+Solution direction: the extraction prompt should be given the list of EXISTING profile
+files so it can add to them rather than creating new ones. The brain review job should
+periodically consolidate overlapping profile files.
+
 ## Connection to Education Mode
 
 Education mode (Phase 7) is the first step toward a sophisticated memory system.
