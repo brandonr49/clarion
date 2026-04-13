@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
     )
 
     # 12. Start reminder checker (checks every 60s for due reminders)
-    from clarion.harness.worker import reminder_checker, job_checker
+    from clarion.harness.worker import reminder_checker, job_checker, maintenance_worker
     reminder_task = asyncio.create_task(
         reminder_checker(db, brain, check_interval=60.0)
     )
@@ -90,6 +90,11 @@ async def lifespan(app: FastAPI):
     # 13. Start scheduled job checker (checks every 5 min)
     job_task = asyncio.create_task(
         job_checker(db, brain, harness, check_interval=300.0)
+    )
+
+    # 13b. Start maintenance worker (brain review, pattern detection on schedule)
+    maint_task = asyncio.create_task(
+        maintenance_worker(brain, harness, note_store, config.maintenance)
     )
 
     # 14. Initialize dashboard manager
@@ -117,7 +122,8 @@ async def lifespan(app: FastAPI):
     worker_task.cancel()
     reminder_task.cancel()
     job_task.cancel()
-    for task in (worker_task, reminder_task, job_task):
+    maint_task.cancel()
+    for task in (worker_task, reminder_task, job_task, maint_task):
         try:
             await task
         except asyncio.CancelledError:

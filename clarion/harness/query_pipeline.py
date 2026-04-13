@@ -230,7 +230,9 @@ async def execute_query_pipeline(
             notes.append("step5_not_found")
 
     # Extract view from answer
+    logger.debug("extract_view input (first 300): %s", repr(answer[:300]))
     view, raw_text = extract_view(answer)
+    logger.debug("extract_view result: view_type=%s", view.get("type") if view else "NONE")
     if view is not None:
         logger.info("Extracted %s view from query pipeline", view.get("type"))
         answer = raw_text if raw_text else answer
@@ -296,10 +298,21 @@ async def _answer_with_context(
     ]
 
     response = await provider.complete(messages, temperature=0.0)
-    content = response.content or ""
-    # Extract the answer portion (strips any reasoning/thinking)
+    raw_content = response.content or ""
+
+    # Extract answer (strips thinking/ANSWER: prefix)
     from clarion.harness.output_utils import extract_answer
-    content = extract_answer(content)
+    content = extract_answer(raw_content)
+
+    # If extract_answer stripped too aggressively (lost the JSON block),
+    # try the raw content instead
+    if "```" not in content and "```" in raw_content:
+        # The JSON block was in the thinking/pre-answer section — use raw
+        import re
+        cleaned = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+        if "```" in cleaned:
+            content = cleaned
+
     return content, list(file_contents.keys())
 
 

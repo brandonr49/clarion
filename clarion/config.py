@@ -58,10 +58,18 @@ class HarnessConfig:
 
 
 @dataclass(frozen=True)
+class MaintenanceConfig:
+    brain_review_hours: int = 24       # run brain review every N hours (0 = disabled)
+    pattern_detection_hours: int = 168  # run pattern detection every N hours (168 = weekly)
+    embedding_rebuild_hours: int = 0   # rebuild embeddings every N hours (0 = only on change)
+
+
+@dataclass(frozen=True)
 class ClarionConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     providers: dict[str, ProviderConfig] = field(default_factory=dict)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
+    maintenance: MaintenanceConfig = field(default_factory=MaintenanceConfig)
     worker: WorkerConfig = field(default_factory=WorkerConfig)
     harness: HarnessConfig = field(default_factory=HarnessConfig)
 
@@ -111,10 +119,18 @@ def load_config(path: str | Path = "clarion.toml") -> ClarionConfig:
         max_note_size=harness_raw.get("max_note_size", 102400),
     )
 
+    maint_raw = raw.get("maintenance", {})
+    maintenance = MaintenanceConfig(
+        brain_review_hours=maint_raw.get("brain_review_hours", 24),
+        pattern_detection_hours=maint_raw.get("pattern_detection_hours", 168),
+        embedding_rebuild_hours=maint_raw.get("embedding_rebuild_hours", 0),
+    )
+
     return ClarionConfig(
         server=server,
         providers=providers,
         routing=routing,
         worker=worker,
         harness=harness,
+        maintenance=maintenance,
     )

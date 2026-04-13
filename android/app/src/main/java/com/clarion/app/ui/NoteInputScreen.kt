@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -25,7 +26,7 @@ fun NoteInputScreen(
     serverConfig: com.clarion.app.data.ServerConfig? = null,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Note", "Ask", "Brain")
+    val tabs = listOf("Note", "Ask", "Brain", "Q&A")
 
     Scaffold(
         topBar = {
@@ -67,6 +68,9 @@ fun NoteInputScreen(
                 2 -> if (serverConfig != null) {
                     BrainBrowserScreen(serverConfig)
                 }
+                3 -> if (serverConfig != null) {
+                    ClarificationsTab(viewModel, serverConfig)
+                }
             }
         }
     }
@@ -75,6 +79,7 @@ fun NoteInputScreen(
 @Composable
 private fun NoteTab(viewModel: NoteViewModel) {
     val focusRequester = remember { FocusRequester() }
+    var isPriming by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -83,6 +88,7 @@ private fun NoteTab(viewModel: NoteViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         OutlinedTextField(
@@ -121,8 +127,15 @@ private fun NoteTab(viewModel: NoteViewModel) {
                 is SubmitState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error, fontSize = 14.sp, modifier = Modifier.weight(1f))
             }
 
+            FilterChip(
+                selected = isPriming,
+                onClick = { isPriming = !isPriming },
+                label = { Text(if (isPriming) "Priming" else "Note", fontSize = 12.sp) },
+                modifier = Modifier.padding(end = 8.dp),
+            )
+
             Button(
-                onClick = { viewModel.submitNote() },
+                onClick = { viewModel.submitNote(if (isPriming) "priming" else "typed") },
                 enabled = viewModel.noteText.isNotBlank() && viewModel.submitState !is SubmitState.Submitting,
             ) {
                 Text("Submit")

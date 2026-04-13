@@ -77,14 +77,14 @@ class NoteViewModel(application: Application) : AndroidViewModel(application) {
         queuedCount = offlineQueue.size
     }
 
-    fun submitNote() {
+    fun submitNote(inputMethod: String = "typed") {
         val content = noteText.trim()
         if (content.isEmpty()) return
         val currentApi = api ?: return
 
         submitState = SubmitState.Submitting
         viewModelScope.launch {
-            val note = NoteCreate(content = content)
+            val note = NoteCreate(content = content, input_method = inputMethod)
             try {
                 val response = currentApi.createNote(note)
                 submitState = SubmitState.Success(response.note_id)

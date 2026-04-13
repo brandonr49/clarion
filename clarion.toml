@@ -31,3 +31,8 @@ clarification_timeout_hours = 24
 max_iterations = 20
 tool_timeout = 30
 max_note_size = 102400
+
+[maintenance]
+brain_review_hours = 0     # run brain structure review every 24 hours (0 = disabled)
+pattern_detection_hours = 0  # run pattern detection weekly (0 = disabled)
+embedding_rebuild_hours = 0    # rebuild embeddings on change only (0 = disabled)

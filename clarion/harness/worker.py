@@ -188,6 +188,61 @@ async def reminder_checker(
             await asyncio.sleep(check_interval)
 
 
+async def maintenance_worker(
+    brain: "BrainManager",
+    harness: "Harness",
+    note_store: "NoteStore",
+    config: "MaintenanceConfig",
+    check_interval: float = 3600.0,
+) -> None:
+    """Background worker for scheduled brain maintenance tasks.
+
+    Checks config for enabled maintenance jobs and runs them on schedule.
+    """
+    logger.info("Maintenance worker started")
+    last_review = 0.0
+    last_patterns = 0.0
+
+    while True:
+        try:
+            now = time.time()
+
+            # Brain review
+            if config.brain_review_hours > 0:
+                review_interval = config.brain_review_hours * 3600
+                if now - last_review >= review_interval:
+                    logger.info("Running scheduled brain review...")
+                    try:
+                        from clarion.harness.brain_maintenance import run_brain_review
+                        await run_brain_review(
+                            brain, harness._router, harness._registry, harness._config
+                        )
+                        last_review = now
+                    except Exception as e:
+                        logger.error("Scheduled brain review failed: %s", e)
+
+            # Pattern detection
+            if config.pattern_detection_hours > 0:
+                pattern_interval = config.pattern_detection_hours * 3600
+                if now - last_patterns >= pattern_interval:
+                    logger.info("Running scheduled pattern detection...")
+                    try:
+                        from clarion.harness.patterns import run_pattern_detection
+                        await run_pattern_detection(brain, note_store, harness._router)
+                        last_patterns = now
+                    except Exception as e:
+                        logger.error("Scheduled pattern detection failed: %s", e)
+
+            await asyncio.sleep(check_interval)
+
+        except asyncio.CancelledError:
+            logger.info("Maintenance worker shutting down")
+            break
+        except Exception as e:
+            logger.error("Maintenance worker error: %s", e, exc_info=True)
+            await asyncio.sleep(check_interval)
+
+
 async def job_checker(
     db: Database,
     brain: "BrainManager",
