@@ -89,8 +89,13 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
 - [ ] Data format evolution (LLM migrates growing markdown lists to databases via brain review)
 
-### Phase 7: Education Mode + Proactive Assistant
-- [ ] LLM follow-up questions on new notes (proactive, not just reactive)
+### Phase 7: Education Mode + Proactive Assistant (IN PROGRESS)
+- [x] Knowledge extraction from context dumps (priming → structured profile files)
+- [x] Proactive question generation (post-note check, throttled, tracked)
+- [x] Question throttling (max 3/day, no repeats, tracked in brain)
+- [x] Suggested question storage from knowledge extraction
+- [x] Education mode design doc
+- [x] Theory of memory design doc (placeholder for future deep work)
 - [ ] Pattern detection (analyze note/query history)
 - [ ] Cross-domain reasoning (cooking impacts groceries, etc.)
 - [ ] LLM-created tools (sandbox, validation, versioning)

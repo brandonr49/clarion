@@ -200,6 +200,36 @@ class Harness:
             result.validation_notes.extend(validation.issues)
 
         self._query_cache.invalidate_all()  # brain changed
+
+        # Education mode: for priming notes, also run knowledge extraction
+        # to build structured user profile from the context dump
+        if note.input_method == "priming":
+            try:
+                from clarion.harness.education import process_education_note
+                edu_summary, facts = await process_education_note(
+                    note.content, self._brain, self._router
+                )
+                result.validation_notes.append(f"education: {edu_summary}")
+                logger.info("Education extraction: %s", edu_summary)
+            except Exception as e:
+                logger.debug("Education extraction failed: %s", e)
+
+        # Education mode: check if we should ask a proactive question
+        # Skip for priming notes (they already get special handling) and ui_actions
+        if note.input_method not in ("priming", "ui_action"):
+            try:
+                from clarion.harness.education import maybe_ask_question
+                question = await maybe_ask_question(
+                    note.content, self._brain, self._router
+                )
+                if question:
+                    result.validation_notes.append(f"education_question: {question}")
+                    # Store as a pending clarification
+                    # (The caller/worker can pick this up and create a clarification record)
+                    result._education_question = question
+            except Exception as e:
+                logger.debug("Education question check failed: %s", e)
+
         return result
 
     async def handle_query(self, query: str, source_client: str) -> HarnessResult:

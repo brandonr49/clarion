@@ -53,6 +53,22 @@ async def processing_worker(
                     result.content[:100],
                 )
 
+                # Handle education mode question if generated
+                # Create a clarification record but DON'T change note status
+                # (the note is already processed, the question is a separate proactive ask)
+                education_q = getattr(result, "_education_question", None)
+                if education_q:
+                    from uuid import uuid4
+                    from datetime import datetime as dt, timezone as tz
+                    conn = db.connection
+                    await conn.execute(
+                        """INSERT INTO clarifications (id, note_id, question, created_at)
+                           VALUES (?, ?, ?, ?)""",
+                        (str(uuid4()), note.id, education_q, dt.now(tz.utc).isoformat()),
+                    )
+                    await conn.commit()
+                    logger.info("Education question queued: %s", education_q)
+
                 # Log the invocation
                 await _log_invocation(
                     db,
