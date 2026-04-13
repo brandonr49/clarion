@@ -71,18 +71,19 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Push notifications for clarifications (WorkManager background polling)
 - [x] Offline note queue (persisted, auto-syncs on reconnect)
 
-### Phase 6: Harness Expansion (IN PROGRESS)
-- [x] Bespoke fast-path toolchains (list_add, list_remove, info_update)
-- [x] Reminder dispatch path with storage in brain
+### Phase 6: Harness Expansion ✅
+- [x] Bespoke fast-path toolchains (list_add, list_remove, info_update, reminder)
+- [x] Reminder dispatch path with storage in brain + GET /reminders endpoint
 - [x] Brain reorganization/review job (POST /brain/review, strong model)
-- [x] Fixed dispatch JSON parser (balanced braces, text fallback)
-- [x] GET /reminders endpoint for client notification polling
-- [ ] Dispatch confidence scoring (low confidence → always full LLM)
-- [ ] Multi-intent detection (split notes with 2+ intents, process each)
-- [ ] Brain file staleness tracking (last read/write timestamps for archival decisions)
+- [x] ANSWER: delimiter approach (model-agnostic output extraction, replaces think-tag hacking)
+- [x] Multi-intent detection (notes with 2+ intents split and processed individually)
+- [x] Dispatch confidence scoring (low confidence → override to full_llm)
+- [x] Query result caching (5 min TTL, invalidates on brain change, max 100 entries)
+- [x] Brain file staleness tracking (read/write timestamps, staleness report for maintenance)
+
+### Phase 6b: Harness Expansion (remaining)
 - [ ] Note-to-file attribution (track which raw notes contributed to each brain file;
-      store in separate section of file, read/write tools that include/exclude attribution)
-- [ ] Query result caching (cache identical queries for 5 min, invalidate on brain change)
+      store in separate section, read/write tools that include/exclude attribution)
 - [ ] Expand dispatch to db_add, db_remove, db_query with schema injection
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
 - [ ] Data format evolution (LLM migrates growing markdown lists to databases)

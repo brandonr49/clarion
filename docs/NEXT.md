@@ -1,208 +1,90 @@
-# Clarion — What's Next
+# Clarion — Current Status & What's Next
 
-## Current State (Phase 1 Complete)
+## Current State (Phase 6 Complete)
 
-Phase 1 is fully implemented and tested:
-- FastAPI server with note ingestion, queries, clarifications, status
-- SQLite persistence for raw notes with full CRUD
-- LLM harness with tool-use agent loop
-- Multi-provider support (Ollama, Claude, OpenAI) with mock for testing
-- Brain manager with path-safe filesystem operations
-- 14 built-in tools for the LLM
-- Background processing worker with retry logic
-- Clarification queue (LLM can pause and ask user questions)
-- Basic web UI (dark theme, note input, query box, clarification cards)
-- 58 tests (53 unit + 5 e2e with Ollama)
+Phases 1-6 are implemented and tested. The system is a working personal AI assistant
+with an Android app, a multi-step harness with fast paths, and a brain that organizes
+itself.
 
-### Model Benchmark Results
+### What Works Today
 
-Tested 4 models across 5 scenarios (bootstrap, two-note update, different topics,
-query, and priming) with optimized prompts:
+- **Server**: FastAPI with 11 API endpoints, SQLite persistence, async background worker
+- **Android app**: note input, queries with view rendering (checklist, table, markdown),
+  interactive checkboxes, widgets (Quick Note + Query), offline queue, push notifications,
+  processing confirmation, settings
+- **Web UI**: note input, query, clarification responses, note list
+- **Harness**: LLM-based dispatcher → fast paths (list_add, list_remove, info_update,
+  reminder) or full agent loop → validation → retry → tier escalation
+- **Query pipeline**: classify files → read → answer with views → broaden search → "I don't know"
+- **Brain**: LLM-organized markdown + JSON + SQLite databases, rebuildable from raw,
+  schema-versioned databases, periodic review capability
+- **Models**: 4 providers (Ollama, Claude, OpenAI, Mock), model routing by tier,
+  qwen3:8b as default local model, Claude Sonnet for complex reasoning
+- **Reliability**: ANSWER: delimiter for model-agnostic output extraction, multi-intent
+  detection, confidence scoring, query caching, staleness tracking
 
-| Model | Pass Rate | Notes |
-|-------|-----------|-------|
-| **qwen3:8b** | **5/5 (100%)** | Best overall. Reliable tool use, creates proper file structure. |
-| qwen2.5:7b | 4/5 (80%) | Good at note processing, occasionally fails on priming. |
-| llama3.1:8b | 4/5 (80%) | Good at note processing, fails on queries (doesn't read brain). |
-| llama3.2:3b | 2/5 (40%) | Too small for reliable tool use. Not recommended. |
+### Test Suite
 
-**Recommendation**: Use **qwen3:8b** as the default local model. It's the only
-model that passes all scenarios including queries. For production-quality brain
-organization (reorganization, complex reasoning), use Claude Sonnet or larger.
+| Suite | Tests | Time |
+|-------|-------|------|
+| Unit tests | 104 | ~0.5s |
+| E2E (Ollama) | 5 | ~3.5min |
+| Dispatch lifecycle | 1 (7 phases) | ~12min |
+| Cloud models | 3 | ~5s |
+| Scale/brain lifecycle | 4 | ~15-30min |
 
-### Prompt Engineering Findings
+## What's Next
 
-Key changes that improved all models:
-1. **"CRITICAL: You MUST use tools"** — explicit instruction that tools are mandatory, not optional
-2. **"Do NOT just describe what you would do"** — prevents models from narrating instead of acting
-3. **Step-by-step numbered instructions** — models follow ordered steps better than prose rules
-4. **Negative examples** — "the index is a map, not storage" prevents content-in-index mistakes
-5. **Query prompt forbids request_clarification** — prevents models from deflecting questions
-
-Prompts live in `clarion/prompts/` as markdown files and can be iterated without code changes.
-
-## Phase 2: Query + Views (COMPLETE)
-
-- [x] Improve system prompts based on e2e observations
-- [x] Query response parsing — extract structured JSON views from LLM responses
-- [x] View type definitions (checklist, table, key_value, markdown, mermaid, composite)
-- [x] View parser (extracts JSON code blocks from LLM output, validates against schemas)
-- [x] API returns structured `view` alongside `raw_text` in query responses
-- [x] Client-side view renderers (checklist with checkboxes, table, key-value, markdown, composite)
-- [x] Interactive views — checkbox clicks submit notes via `POST /notes` with `input_method: "ui_action"`
-- [x] Client type awareness in query prompt ({source_client} variable)
-- [x] 17 new unit tests for view parsing and types
-- [x] Updated benchmark confirms qwen2.5:7b and qwen3:8b both at 100%
-
-## Phase 3: Harness Enforcement + Model Routing (COMPLETE)
-
-See `docs/design/harness-enforcement.md` for the design rationale.
-
-**Harness enforcement (code-level):**
-- [x] Tool filtering by task type — queries get read-only tools only, write/clarification tools hidden
-- [x] Double-layer enforcement — tools filtered from LLM view AND blocked at execution time
-- [x] Post-processing validation:
-  - Note processing: must use write tools, brain must change, index must update if files added/removed
-  - Queries: must read brain files (skipped on empty brain)
-  - Appending to existing files correctly does NOT require index update
-- [x] Auto-retry on validation failure (one retry with specific feedback prompt)
-- [x] Auto-wrap raw text in markdown view when no structured view extracted
-- [x] 16 new enforcement unit tests
-
-**Brain database tools (7 tools):**
-- [x] create_brain_db, brain_db_insert, brain_db_query, brain_db_update, brain_db_delete
-- [x] brain_db_schema, brain_db_raw_query (read-only SQL, blocks non-SELECT)
-- [x] Access control: db write tools excluded from query task type
-- [x] 8 new database tool tests
-
-**Brain maintenance:**
-- [x] Brain rebuild from raw (with snapshot before clear)
-- [x] POST /brain/rebuild API endpoint
-- [x] Brain file state snapshots (before/after diff for validation)
-
-**Deferred to Phase 4:**
-- [ ] Pre-processing classification (fast model triage)
-- [ ] Model tier routing by complexity
-- [ ] Context narrowing
-- [ ] Brain reorganization jobs
-
-## Phase 4: Harness Hardening (IN PROGRESS)
-
-**Implemented:**
-- [x] LLM-based dispatcher: fast model classifies notes into categories
-  (LIST_ADD, LIST_REMOVE, INFO_UPDATE, NEEDS_CLARIFICATION, FULL_LLM)
-  - See `docs/design/dispatch-system.md` for full design and history
-  - Replaces the earlier rule-based "classifier" which used string matching
-  - The fast LLM decides the category, not regex patterns
-  - Falls back gracefully to FULL_LLM if fast model is unavailable
-- [x] Multi-step query pipeline (classify → read → answer → broaden → not found)
-  - Fast model identifies relevant files, harness reads them directly
-  - Standard model answers with pre-loaded context
-  - If answer not found, broadens search, then "I don't know" with searched files
-- [x] Tier escalation on validation failure (FAST → STANDARD on retry failure)
-- [x] Database schema versioning (_schema_meta table with version, created_at, schema)
-- [x] Cloud model support: Claude API key from file or env var, gitignored
-- [x] Cloud model integration test (Claude Haiku — 3/3 passing)
-- [x] Scale tests (30-50 diverse notes through full pipeline)
-- [x] Brain database tools with access control (7 tools, 8 tests)
-- [x] Brain rebuild from raw with API endpoint
-
-**Remaining:**
-- [ ] Expand dispatch categories (db_add, db_remove, db_query, reminder, journal, batch)
-- [ ] Bespoke fast-path toolchains with schema injection for database ops
+### Phase 6b: Harness Expansion (remaining)
+- [ ] Note-to-file attribution (track which raw notes contributed to each brain file)
+- [ ] Expand dispatch to db_add, db_remove, db_query with schema injection
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
-- [ ] Schema migration tools for brain databases
-- [ ] Semantic validation (does the query response address the question?)
-- [ ] Harness telemetry (success rates per task type, model, prompt version)
-- [ ] LLM-created tools: sandbox, validation, versioning
-- [ ] LLM-scheduled cron jobs (the LLM schedules its own recurring tasks)
+- [ ] Data format evolution (LLM migrates growing markdown lists to databases)
+- [ ] Semantic validation (does query response address the question?)
+- [ ] Harness telemetry (success rates per task type, model, prompt)
 
-**Real-world note fixtures:**
-- `tests/fixtures/real_notes_sample.py` — 100+ real notes from user's actual note system
-- Covers: terse/cryptic, shopping, home improvement, tech, work venting, family, cooking,
-  media, finance, house design, renovations, batch notes
-- These are the benchmark for whether the brain organizes correctly at scale
-
-## Phase 5: Android App
-
-Focus: the primary input device.
-
-- [ ] Native Android app (Kotlin + Jetpack Compose)
-- [ ] Fast text input (open -> type -> submit)
-- [ ] Local voice-to-text (on-device model, no network for STT)
-- [ ] Home screen widget: quick note input
-- [ ] Home screen widget: dashboard view
-- [ ] Push notifications for clarifications
-- [ ] View rendering on phone form factor
-
-## Phase 6: Education Mode + Proactive Assistant
-
-Focus: the LLM becomes an active assistant, not just a passive filer.
-
+### Phase 7: Education Mode + Proactive Assistant
 - [ ] LLM follow-up questions on new notes (proactive, not just reactive)
-- [ ] Interaction log storage
-- [ ] Pattern detection (periodic analysis of note/query history)
-- [ ] Proactive suggestions and insights
+- [ ] Pattern detection (analyze note/query history)
 - [ ] Cross-domain reasoning (cooking impacts groceries, etc.)
+- [ ] LLM-created tools (sandbox, validation, versioning)
+- [ ] LLM-scheduled cron jobs
 
-## Phase 7: Polish
-
+### Phase 8: Polish
+- [ ] Web UI: show recent queries alongside recent notes
+- [ ] Duplicate detection: LLM reads target file before writing, skips if present
 - [ ] Smart view caching
 - [ ] Persistent dashboards
+- [ ] Brain file browser in Android app (read-only, cached)
+- [ ] Cache most recent brain state in Android app
 - [ ] Desktop PWA or native wrapper
 - [ ] Multi-user support (2 users, lightweight auth)
-- [ ] File attachment support (raw files, brain references via raw:// links)
-- [ ] Brain snapshot/versioning on timer
+- [ ] File attachments (raw:// links in brain files)
+- [ ] Local voice-to-text in Android app (on-device model)
 - [ ] CLI client
 
-## Test Suite Summary
+## Key Design Docs
 
-| Suite | Tests | Time | Requires |
-|-------|-------|------|----------|
-| Unit tests | 103 | ~0.5s | Nothing |
-| E2E (Ollama) | 5 | ~3.5min | Ollama + qwen3:8b |
-| Scale test | 2 | ~15-30min | Ollama + qwen3:8b |
-| Cloud models | 3 | ~30s | ANTHROPIC_API_KEY |
-| Benchmark | 20 (4 models x 5) | ~5min | Ollama + all models |
+| Doc | What It Covers |
+|-----|---------------|
+| `design/dispatch-system.md` | Dispatcher architecture, intent categories, multi-intent |
+| `design/fast-paths-and-output.md` | Fast path toolchains, ANSWER: delimiter, confidence, caching |
+| `design/harness-enforcement.md` | Tool filtering, validation, retry, tier escalation |
+| `design/harness-design.md` | Core agent loop, tool registry, system prompts |
+| `design/brain-storage.md` | File formats, conventions, database schema versioning |
+| `design/brain-bootstrap.md` | Cold start, priming, brain rebuild |
+| `design/api-contract.md` | API endpoints and shapes |
+| `design/note-pipeline.md` | Note ingestion flow, queue, clarifications |
+| `design/provider-abstraction.md` | LLM provider interface, model routing |
+| `model-experiments.md` | Model benchmarks, eGPU plans, Kimi models |
+| `android-setup.md` | Android development setup from scratch |
 
-## Running the Tests
+## Running
 
 ```bash
-# Unit tests only (fast, no LLM needed)
-make test-unit
-
-# E2E tests (requires Ollama running with qwen3:8b)
-make test-e2e
-
-# Scale tests (30-50 notes, slow)
-make test-scale
-
-# Cloud model tests (requires ANTHROPIC_API_KEY file or env var)
-make test-cloud
-
-# All tests except scale (reasonable CI time)
-make test
-
-# Benchmark all local models
-make benchmark
-
-# Use a different model for e2e/scale tests
-OLLAMA_MODEL=qwen2.5:7b make test-e2e
-
-# Run the server
-make run
+make run              # Start server
+make android-run      # Build + install Android app
+make test-unit        # 104 unit tests (~0.5s)
+make test             # All tests except scale (~4min)
+make benchmark        # Compare local models
 ```
-
-## Key Design Documents
-
-All design decisions are in `docs/`:
-- `docs/decisions/D1-D6` — resolved architectural decisions
-- `docs/design/api-contract.md` — API endpoints and shapes
-- `docs/design/note-pipeline.md` — how notes flow through the system
-- `docs/design/provider-abstraction.md` — LLM provider interface
-- `docs/design/harness-design.md` — the core agent loop and tools
-- `docs/design/brain-bootstrap.md` — cold start and priming
-- `docs/design/brain-storage.md` — file formats and conventions
-- `docs/design/phase1-spec.md` — Phase 1 implementation details
-- `docs/vision.md` — long-term vision (personal AI assistant)
-- `docs/PLAN.md` — phase overview and design principles
