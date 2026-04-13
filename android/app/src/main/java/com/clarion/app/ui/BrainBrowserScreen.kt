@@ -84,19 +84,46 @@ fun BrainBrowserScreen(serverConfig: ServerConfig) {
             }
         } else {
             // Tree view
-            Text(
-                "Brain Files",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                TreeView(tree, api) { file ->
-                    selectedFile = file
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                Text(
+                    "Brain Files",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = {
+                    scope.launch {
+                        loading = true
+                        error = null
+                        try {
+                            val resp = api.getBrainTree()
+                            tree = resp.tree
+                        } catch (e: Exception) {
+                            error = e.message
+                        }
+                        loading = false
+                    }
+                }) {
+                    Text("Refresh")
+                }
+            }
+
+            if (tree.isEmpty()) {
+                Text(
+                    "Brain is empty. Submit some notes first!",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(16.dp),
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TreeView(tree, api) { file ->
+                        selectedFile = file
+                    }
                 }
             }
         }
