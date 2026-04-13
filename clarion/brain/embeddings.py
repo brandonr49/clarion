@@ -84,16 +84,24 @@ class EmbeddingIndex:
         return None
 
     def update_file(self, path: str) -> None:
-        """Update the embedding for a single brain file."""
-        content = self._brain.read_file(path)
-        if content is None:
-            # File was deleted — remove from index
-            self._index.pop(path, None)
-            self._save()
-            return
+        """Update the embedding for a single brain file.
 
-        # Create a summary for embedding: path + first ~500 chars of content
-        summary = f"File: {path}\n{content[:500]}"
+        For text files: embeds path + first ~500 chars of content.
+        For .db files: embeds path + schema description + sample data.
+        """
+        if path.endswith(".db"):
+            summary = self._summarize_database(path)
+            if summary is None:
+                self._index.pop(path, None)
+                self._save()
+                return
+        else:
+            content = self._brain.read_file(path)
+            if content is None:
+                self._index.pop(path, None)
+                self._save()
+                return
+            summary = f"File: {path}\n{content[:500]}"
         vector = self._embed(summary)
         if vector is None:
             return
@@ -106,6 +114,52 @@ class EmbeddingIndex:
         }
         self._save()
         logger.debug("Updated embedding for %s", path)
+
+    def _summarize_database(self, path: str) -> str | None:
+        """Create a text summary of a brain database for embedding."""
+        import sqlite3
+        resolved = self._brain.resolve_path(path)
+        if not resolved.exists():
+            return None
+
+        try:
+            conn = sqlite3.connect(str(resolved))
+            conn.row_factory = sqlite3.Row
+
+            # Get schema
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != '_schema_meta'"
+            ).fetchall()
+
+            parts = [f"Database: {path}"]
+            for table in tables:
+                tname = table["name"]
+                cols = conn.execute(f'PRAGMA table_info("{tname}")').fetchall()
+                col_names = [c["name"] for c in cols]
+                count = conn.execute(f'SELECT COUNT(*) FROM "{tname}"').fetchone()[0]
+                parts.append(f"Table {tname} ({count} rows): columns {', '.join(col_names)}")
+
+                # Sample a few rows for content embedding
+                if count > 0:
+                    rows = conn.execute(f'SELECT * FROM "{tname}" LIMIT 5').fetchall()
+                    for row in rows:
+                        row_text = ", ".join(f"{k}={row[k]}" for k in row.keys() if row[k] is not None)
+                        parts.append(f"  - {row_text}")
+
+            # Get description from _schema_meta if available
+            try:
+                meta = conn.execute("SELECT value FROM _schema_meta WHERE key='description'").fetchone()
+                if meta:
+                    parts.insert(1, f"Description: {meta[0]}")
+            except Exception:
+                pass
+
+            conn.close()
+            return "\n".join(parts)
+
+        except Exception as e:
+            logger.warning("Failed to summarize database %s: %s", path, e)
+            return None
 
     def remove_file(self, path: str) -> None:
         """Remove a file from the embedding index."""
@@ -156,11 +210,16 @@ class EmbeddingIndex:
                 if rel_path.startswith("_index") or rel_path.startswith("_dir_index"):
                     continue
 
-                content = self._brain.read_file(rel_path)
-                if content is None:
-                    continue
-
-                summary = f"File: {rel_path}\n{content[:500]}"
+                # Handle databases vs text files
+                if rel_path.endswith(".db"):
+                    summary = self._summarize_database(rel_path)
+                    if not summary:
+                        continue
+                else:
+                    content = self._brain.read_file(rel_path)
+                    if content is None:
+                        continue
+                    summary = f"File: {rel_path}\n{content[:500]}"
                 vector = self._embed(summary)
                 if vector:
                     self._index[rel_path] = {

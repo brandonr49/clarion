@@ -434,11 +434,15 @@ class Harness:
                 ),
             )
 
-        non_index_added = {f for f in added if f != INDEX_FILENAME}
-        non_index_removed = {f for f in removed if f != INDEX_FILENAME}
+        # Filter out index files (root index and directory indexes)
+        index_files = {f for f in (added | removed | modified)
+                       if f == INDEX_FILENAME or f.endswith("/_dir_index.md") or f == "_dir_index.md"}
+        non_index_added = {f for f in added if f not in index_files}
+        non_index_removed = {f for f in removed if f not in index_files}
 
         if non_index_added or non_index_removed:
-            index_was_updated = INDEX_FILENAME in modified or INDEX_FILENAME in added
+            # Check if ANY index was updated (root or directory level)
+            index_was_updated = bool(index_files & (modified | added))
             if not index_was_updated:
                 issues.append("index_not_updated_after_file_change")
                 retry = self._prompts.get("retry_no_index", (
@@ -499,12 +503,29 @@ class Harness:
 
     def _format_note_task(self, note: RawNote, brain_index: str) -> str:
         parts = [
-            f"## Brain Index\n\n{brain_index}",
-            f"## New Note",
+            f"## Root Brain Index\n\n{brain_index}",
+        ]
+
+        # Load relevant directory indexes based on embedding search
+        if self._embedding_index and self._embedding_index.size > 0:
+            hits = self._embedding_index.search(note.content, top_k=3)
+            relevant_dirs = set()
+            for path, score in hits:
+                if score > 0.3 and "/" in path:
+                    dir_name = path.split("/")[0]
+                    relevant_dirs.add(dir_name)
+
+            for dir_name in relevant_dirs:
+                dir_index = self._brain.read_file(f"{dir_name}/_dir_index.md")
+                if dir_index:
+                    parts.append(f"\n## Directory: {dir_name}/\n\n{dir_index}")
+
+        parts.extend([
+            f"\n## New Note",
             f"- **Source**: {note.source_client}",
             f"- **Input method**: {note.input_method}",
             f"- **Timestamp**: {note.created_at}",
-        ]
+        ])
         if note.location:
             parts.append(f"- **Location**: {note.location}")
         if note.metadata and note.metadata != {}:

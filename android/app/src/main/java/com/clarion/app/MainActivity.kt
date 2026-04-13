@@ -68,6 +68,7 @@ fun ClarionApp(serverConfig: ServerConfig) {
             NoteInputScreen(
                 viewModel = viewModel,
                 onNavigateToSettings = { navController.navigate("settings") },
+                serverConfig = serverConfig,
             )
         }
         composable("settings") {

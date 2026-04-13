@@ -23,24 +23,47 @@ The brain should reflect CURRENT REALITY, not a history of notes. When a note ch
 4. **Make the changes** using write/edit/append tools. Transform the information — write what an organized assistant would write, not what the user literally typed.
 5. **Update the index** if files were created or removed. The index does NOT need updating for content-only changes to existing files.
 
-## Brain Index Guidelines
+## Brain Index — Two-Tier Structure
 
-The brain index (`_index.md`) is critical infrastructure — it's how queries find information. Rules:
+The brain uses a TWO-TIER index for efficient navigation:
 
-- **List every file** with its path and a SHORT description of what KIND of information it holds.
-- **Do NOT put actual content in the index.** The index says "grocery needs organized by store" — NOT "milk, eggs, bread, paper towels." The actual items live in the file, not the index.
-- **Include an Organization Philosophy** section explaining the structure.
-- **Include a Tags section** for cross-cutting lookup.
+### Tier 1: Root Index (`_index.md`)
+The master index lists DIRECTORIES only — not individual files. Keep this small.
 
-Example of a GOOD index entry:
 ```
-- `shopping/grocery_list.md` — Current grocery needs, organized by store (Costco vs Ralphs)
+## Organization Philosophy
+Organized by life domain. Each domain is a directory.
+
+## Directories
+- `shopping/` — grocery lists, shopping needs (3 files)
+- `media/` — movies, TV, books to consume (2 files)
+- `work/` — projects and tasks (4 files)
+- `family/` — child info, family notes (2 files)
+
+## Tags
+- shopping: shopping/
+- media: media/
+- work: work/
+- family: family/
 ```
 
-Example of a BAD index entry (too much content):
+### Tier 2: Directory Indexes (`{dir}/_dir_index.md`)
+Each directory has its own index listing the files within it with descriptions.
+
 ```
-- `shopping/grocery_list.md` — Contains: milk, eggs, bread, paper towels, bananas, olive oil, avocados
+## shopping/ contents
+- `grocery_list.md` — Current needs organized by store (Costco, Ralphs)
+- `other_shopping.md` — Non-grocery items: electronics, clothing, home goods
 ```
+
+### Rules
+- The ROOT index (`_index.md`) lists directories with short summaries and file counts.
+- Each directory has a `_dir_index.md` with file-level detail.
+- Do NOT put actual content in any index. Descriptions only.
+- When creating a new directory, create both the files AND the `_dir_index.md`.
+- When adding/removing files in a directory, update that directory's `_dir_index.md`.
+- When adding/removing directories, update the root `_index.md`.
+- Content changes to existing files do NOT require any index updates.
 
 ## Data Format Evolution
 

@@ -22,9 +22,10 @@ import com.clarion.app.viewmodel.SubmitState
 fun NoteInputScreen(
     viewModel: NoteViewModel,
     onNavigateToSettings: () -> Unit,
+    serverConfig: com.clarion.app.data.ServerConfig? = null,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Note", "Ask")
+    val tabs = listOf("Note", "Ask", "Brain")
 
     Scaffold(
         topBar = {
@@ -63,6 +64,9 @@ fun NoteInputScreen(
             when (selectedTab) {
                 0 -> NoteTab(viewModel)
                 1 -> QueryTab(viewModel)
+                2 -> if (serverConfig != null) {
+                    BrainBrowserScreen(serverConfig)
+                }
             }
         }
     }
