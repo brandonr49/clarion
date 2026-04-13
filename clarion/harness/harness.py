@@ -230,6 +230,25 @@ class Harness:
             except Exception as e:
                 logger.debug("Education question check failed: %s", e)
 
+        # Cross-domain reasoning: check if this note impacts other brain areas
+        # Skip for priming (already broad) and ui_actions (simple interactions)
+        if note.input_method not in ("priming", "ui_action"):
+            try:
+                from clarion.harness.cross_domain import (
+                    check_cross_domain, apply_cross_domain_effects
+                )
+                effects = await check_cross_domain(
+                    note.content, self._brain, self._router
+                )
+                if effects:
+                    summaries = await apply_cross_domain_effects(
+                        effects, self._brain, self._router
+                    )
+                    for s in summaries:
+                        result.validation_notes.append(f"cross_domain: {s}")
+            except Exception as e:
+                logger.debug("Cross-domain check failed: %s", e)
+
         return result
 
     async def handle_query(self, query: str, source_client: str) -> HarnessResult:

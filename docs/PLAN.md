@@ -89,17 +89,19 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
 - [ ] Data format evolution (LLM migrates growing markdown lists to databases via brain review)
 
-### Phase 7: Education Mode + Proactive Assistant (IN PROGRESS)
+### Phase 7: Education Mode + Proactive Assistant ✅
 - [x] Knowledge extraction from context dumps (priming → structured profile files)
 - [x] Proactive question generation (post-note check, throttled, tracked)
 - [x] Question throttling (max 3/day, no repeats, tracked in brain)
-- [x] Suggested question storage from knowledge extraction
-- [x] Education mode design doc
-- [x] Theory of memory design doc (placeholder for future deep work)
-- [ ] Pattern detection (analyze note/query history)
-- [ ] Cross-domain reasoning (cooking impacts groceries, etc.)
+- [x] Reminder flow: LLM time resolution → background checker → notification firing
+- [x] Pattern detection (periodic job analyzing raw note history, POST /brain/patterns)
+- [x] Cross-domain reasoning (post-note check for effects on other brain areas)
+- [x] Brain insights storage (`_insights/patterns.json`, GET /brain/insights)
+- [x] Design docs: education-mode.md, theory-of-memory.md, brain-intelligence.md
+
+### Phase 7b: Advanced Intelligence (remaining)
 - [ ] LLM-created tools (sandbox, validation, versioning)
-- [ ] LLM-scheduled cron jobs
+- [ ] LLM-scheduled cron jobs (beyond reminders — recurring analysis jobs)
 
 ### Phase 8: Polish
 - [ ] Web UI: show recent queries alongside recent notes

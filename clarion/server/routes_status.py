@@ -29,6 +29,35 @@ async def get_telemetry(request: Request):
     return harness.telemetry.get_report()
 
 
+@router.post("/brain/patterns")
+async def detect_patterns(request: Request):
+    """Run pattern detection on note history."""
+    from clarion.harness.patterns import run_pattern_detection
+
+    brain = request.app.state.brain
+    note_store = request.app.state.note_store
+    config = request.app.state.config
+    harness = request.app.state.harness
+
+    logger.info("Pattern detection requested")
+    try:
+        results = await run_pattern_detection(
+            brain, note_store, harness._router
+        )
+        return {"status": "completed", **results}
+    except Exception as e:
+        logger.error("Pattern detection failed: %s", e, exc_info=True)
+        raise HTTPException(500, f"Pattern detection failed: {e}")
+
+
+@router.get("/brain/insights")
+async def get_insights(request: Request):
+    """Get discovered patterns and insights."""
+    from clarion.harness.patterns import get_patterns
+    brain = request.app.state.brain
+    return get_patterns(brain)
+
+
 @router.get("/reminders")
 async def get_reminders(request: Request):
     """Get pending reminders."""
