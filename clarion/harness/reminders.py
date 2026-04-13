@@ -20,14 +20,15 @@ logger = logging.getLogger(__name__)
 REMINDERS_FILE = "_reminders/pending.json"
 
 PARSE_REMINDER_PROMPT = """\
-Extract the reminder details from this note. Reply with ONLY a JSON object:
-{
-  "reminder": "what to remind about (clear, actionable text)",
-  "when_text": "the time expression from the note (e.g., 'tomorrow at 3pm', 'Friday', 'in 2 hours')",
-  "is_reminder": true
-}
+Extract the reminder details from this note.
 
-If this is NOT actually a reminder request, reply:
+You may reason about the note, but your final answer MUST start with "ANSWER:" followed by a JSON object:
+
+ANSWER:
+{"reminder": "what to remind about", "when_text": "time expression", "is_reminder": true}
+
+If this is NOT a reminder, reply:
+ANSWER:
 {"is_reminder": false}"""
 
 
@@ -44,23 +45,20 @@ async def handle_reminder(
         Message(role="user", content=note_content),
     ]
 
-    response = await provider.complete(messages, temperature=0.0, max_tokens=200)
+    response = await provider.complete(messages, temperature=0.0)
     text = response.content or ""
 
-    try:
-        import re
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if not json_match:
-            return "Could not parse reminder"
-        data = json.loads(json_match.group(0))
+    from clarion.harness.output_utils import extract_json_from_answer
+    data = extract_json_from_answer(text)
 
-        if not data.get("is_reminder", False):
-            return "Not a reminder"
+    if data and not data.get("is_reminder", True):
+        return "Not a reminder"
 
+    if data:
         reminder_text = data.get("reminder", note_content)
         when_text = data.get("when_text", "unspecified time")
-
-    except (json.JSONDecodeError, KeyError):
+    else:
+        # Fallback: store the note as-is
         reminder_text = note_content
         when_text = "unspecified time"
 

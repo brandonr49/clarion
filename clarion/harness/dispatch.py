@@ -37,14 +37,24 @@ class DispatchType(Enum):
 
 
 @dataclass(frozen=True)
-class DispatchResult:
-    """Output of the dispatcher."""
+class SingleIntent:
+    """One intent extracted from a note."""
     dispatch_type: DispatchType
+    target_files: list[str] = field(default_factory=list)
+    content: str = ""  # the portion of the note for this intent
+
+
+@dataclass(frozen=True)
+class DispatchResult:
+    """Output of the dispatcher. May contain multiple intents."""
+    dispatch_type: DispatchType  # primary intent (first in list)
     tier: Tier
     target_files: list[str] = field(default_factory=list)
     reasoning: str = ""
+    confidence: str = "high"  # "high", "medium", "low"
     needs_clarification: bool = False
     clarification_question: str = ""
+    intents: list[SingleIntent] = field(default_factory=list)  # all intents (multi-intent)
 
 
 _dispatch_prompt_cache: str | None = None
@@ -146,39 +156,41 @@ class NoteDispatcher:
             )),
         ]
 
-        response = await provider.complete(messages, temperature=0.0, max_tokens=300)
+        response = await provider.complete(messages, temperature=0.0)
         text = response.content or ""
 
         return self._parse_classification(text)
 
     def _parse_classification(self, text: str) -> DispatchResult:
         """Parse the LLM's classification response."""
-        # Strategy 1: code block
-        block_match = re.search(r'```(?:json)?\s*\n(.*?)\n\s*```', text, re.DOTALL)
-        if block_match:
-            try:
-                data = json.loads(block_match.group(1).strip())
-                if isinstance(data, dict) and ("intent" in data or "type" in data):
-                    return self._build_dispatch_result(data)
-            except json.JSONDecodeError:
-                pass
+        from clarion.harness.output_utils import extract_json_from_answer
 
-        # Strategy 2: balanced brace matching (handles multi-line JSON)
-        from clarion.views.parser import _find_matching_brace
-        i = text.find('{')
-        while i >= 0 and i < len(text):
-            end = _find_matching_brace(text, i)
-            if end is not None:
-                candidate = text[i:end + 1]
-                try:
-                    data = json.loads(candidate)
-                    if isinstance(data, dict) and ("intent" in data or "type" in data):
-                        return self._build_dispatch_result(data)
-                except json.JSONDecodeError:
-                    pass
-            i = text.find('{', i + 1)
+        data = extract_json_from_answer(text)
+        if data and isinstance(data, dict) and ("intent" in data or "type" in data):
+            return self._build_dispatch_result(data)
 
-        logger.warning("Could not parse dispatch response, defaulting to full_llm: %s", text[:200])
+        # Fallback: look for intent keywords in the answer text
+        from clarion.harness.output_utils import extract_answer
+        answer = extract_answer(text)
+        intent_keywords = {
+            "reminder": DispatchType.REMINDER,
+            "list_add": DispatchType.LIST_ADD,
+            "list_remove": DispatchType.LIST_REMOVE,
+            "info_update": DispatchType.INFO_UPDATE,
+            "needs_clarification": DispatchType.NEEDS_CLARIFICATION,
+        }
+        for keyword, dtype in intent_keywords.items():
+            if f'"{keyword}"' in answer.lower():
+                logger.info("Dispatch fallback: extracted intent '%s' from text", keyword)
+                tier = Tier.FAST if dtype not in (
+                    DispatchType.NEEDS_CLARIFICATION, DispatchType.FULL_LLM
+                ) else Tier.STANDARD
+                return DispatchResult(
+                    dispatch_type=dtype, tier=tier,
+                    reasoning=f"Extracted from text: {keyword}",
+                )
+
+        logger.warning("Could not parse dispatch response, defaulting to full_llm: %s", text[:300])
         return DispatchResult(
             dispatch_type=DispatchType.FULL_LLM,
             tier=Tier.STANDARD,
@@ -186,12 +198,10 @@ class NoteDispatcher:
         )
 
     def _build_dispatch_result(self, data: dict) -> DispatchResult:
-        """Build a DispatchResult from parsed JSON data."""
-        dtype_str = data.get("intent", data.get("type", "full_llm"))
-        target_files = data.get("target_files", [])
-        reasoning = data.get("reasoning", "")
-        clar_question = data.get("clarification_question", "")
+        """Build a DispatchResult from parsed JSON data.
 
+        Handles both old single-intent format and new multi-intent format.
+        """
         type_map = {
             "list_add": DispatchType.LIST_ADD,
             "list_remove": DispatchType.LIST_REMOVE,
@@ -200,27 +210,80 @@ class NoteDispatcher:
             "needs_clarification": DispatchType.NEEDS_CLARIFICATION,
             "full_llm": DispatchType.FULL_LLM,
         }
-        dispatch_type = type_map.get(dtype_str, DispatchType.FULL_LLM)
 
-        if dispatch_type in (DispatchType.LIST_ADD, DispatchType.LIST_REMOVE,
-                             DispatchType.INFO_UPDATE, DispatchType.REMINDER):
+        reasoning = data.get("reasoning", "")
+        clar_question = data.get("clarification_question", "")
+        intents_raw = data.get("intents", [])
+        parsed_intents: list[SingleIntent] = []
+
+        if intents_raw and isinstance(intents_raw, list):
+            # New multi-intent format
+            for item in intents_raw:
+                if not isinstance(item, dict):
+                    continue
+                dtype = type_map.get(item.get("intent", ""), DispatchType.FULL_LLM)
+                tfiles = item.get("target_files", [])
+                if not isinstance(tfiles, list):
+                    tfiles = []
+                tfiles = [f for f in tfiles if isinstance(f, str)]
+                content = item.get("content", "")
+                parsed_intents.append(SingleIntent(
+                    dispatch_type=dtype,
+                    target_files=tfiles,
+                    content=content,
+                ))
+        else:
+            # Old single-intent format (backward compat)
+            dtype_str = data.get("intent", data.get("type", "full_llm"))
+            dtype = type_map.get(dtype_str, DispatchType.FULL_LLM)
+            tfiles = data.get("target_files", [])
+            if not isinstance(tfiles, list):
+                tfiles = []
+            tfiles = [f for f in tfiles if isinstance(f, str)]
+            parsed_intents.append(SingleIntent(
+                dispatch_type=dtype,
+                target_files=tfiles,
+                content="",
+            ))
+
+        # Primary intent is the first one
+        primary = parsed_intents[0] if parsed_intents else SingleIntent(
+            dispatch_type=DispatchType.FULL_LLM
+        )
+
+        if primary.dispatch_type in (DispatchType.LIST_ADD, DispatchType.LIST_REMOVE,
+                                     DispatchType.INFO_UPDATE, DispatchType.REMINDER):
             tier = Tier.FAST
         else:
             tier = Tier.STANDARD
 
-        needs_clar = dispatch_type == DispatchType.NEEDS_CLARIFICATION
+        # If any intent is full_llm or needs_clarification, use standard tier
+        if any(i.dispatch_type in (DispatchType.FULL_LLM, DispatchType.NEEDS_CLARIFICATION)
+               for i in parsed_intents):
+            tier = Tier.STANDARD
+
+        # Confidence check — low confidence overrides to full_llm
+        confidence = data.get("confidence", "high")
+        if confidence == "low":
+            logger.info("Low confidence dispatch — overriding to full_llm")
+            return DispatchResult(
+                dispatch_type=DispatchType.FULL_LLM,
+                tier=Tier.STANDARD,
+                reasoning=f"Low confidence: {reasoning}",
+                confidence="low",
+            )
+
+        needs_clar = primary.dispatch_type == DispatchType.NEEDS_CLARIFICATION
         if needs_clar and not clar_question:
             clar_question = "Could you provide more context about this note?"
 
-        if not isinstance(target_files, list):
-            target_files = []
-        target_files = [f for f in target_files if isinstance(f, str)]
-
         return DispatchResult(
-            dispatch_type=dispatch_type,
+            dispatch_type=primary.dispatch_type,
             tier=tier,
-            target_files=target_files,
+            target_files=primary.target_files,
             reasoning=reasoning,
+            confidence=confidence,
             needs_clarification=needs_clar,
             clarification_question=clar_question,
+            intents=parsed_intents,
         )

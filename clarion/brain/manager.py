@@ -12,11 +12,13 @@ INDEX_FILENAME = "_index.md"
 
 
 class BrainManager:
-    """Manages the brain directory with path safety and convenience operations."""
+    """Manages the brain directory with path safety, staleness tracking, and convenience operations."""
 
     def __init__(self, brain_root: Path):
         self._root = brain_root.resolve()
         self._root.mkdir(parents=True, exist_ok=True)
+        # Track last read/write timestamps for staleness analysis
+        self._access_log: dict[str, dict[str, float]] = {}  # path -> {last_read, last_write}
 
     @property
     def root(self) -> Path:
@@ -52,6 +54,7 @@ class BrainManager:
         resolved = self.resolve_path(path)
         if not resolved.is_file():
             return None
+        self._track_access(path, "read")
         return resolved.read_text(encoding="utf-8")
 
     def read_file_section(self, path: str, start_line: int, num_lines: int) -> str | None:
@@ -70,6 +73,7 @@ class BrainManager:
         resolved = self.resolve_path(path)
         resolved.parent.mkdir(parents=True, exist_ok=True)
         resolved.write_text(content, encoding="utf-8")
+        self._track_access(path, "write")
 
     def edit_file(self, path: str, old_text: str, new_text: str) -> bool:
         """Replace the first occurrence of old_text with new_text. Returns success."""
@@ -202,6 +206,37 @@ class BrainManager:
             if before[k] != after[k]
         }
         return added, removed, modified
+
+    # -- Access tracking --
+
+    def _track_access(self, path: str, access_type: str) -> None:
+        """Record a read or write access to a brain file."""
+        import time
+        if path not in self._access_log:
+            self._access_log[path] = {"last_read": 0.0, "last_write": 0.0}
+        self._access_log[path][f"last_{access_type}"] = time.time()
+
+    def get_staleness_report(self) -> list[dict]:
+        """Get files sorted by staleness (least recently accessed first).
+
+        Returns list of {path, last_read, last_write, last_accessed, stale_days}.
+        Useful for brain maintenance — stale files may need archival or review.
+        """
+        import time
+        now = time.time()
+        report = []
+        for path, times in self._access_log.items():
+            last_accessed = max(times["last_read"], times["last_write"])
+            stale_days = (now - last_accessed) / 86400 if last_accessed > 0 else -1
+            report.append({
+                "path": path,
+                "last_read": times["last_read"],
+                "last_write": times["last_write"],
+                "last_accessed": last_accessed,
+                "stale_days": round(stale_days, 1),
+            })
+        report.sort(key=lambda x: x["last_accessed"])
+        return report
 
     def clear(self) -> None:
         """Remove all brain contents. Used for brain rebuild."""

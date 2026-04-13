@@ -50,15 +50,18 @@ class Harness:
         config: HarnessConfig,
         prompts: dict[str, str],
     ):
+        from clarion.harness.query_cache import QueryCache
+
         self._router = router
         self._registry = registry
         self._brain = brain
+        self._query_cache = QueryCache(ttl_seconds=300.0)
         self._config = config
         self._prompts = prompts
 
     async def process_note(self, note: RawNote) -> HarnessResult:
         """Process a note: dispatch, then validate with retry and escalation."""
-        from clarion.harness.dispatch import NoteDispatcher, DispatchType
+        from clarion.harness.dispatch import NoteDispatcher, DispatchType, DispatchResult, SingleIntent
 
         # Step 1: Dispatch — fast LLM classifies the note
         dispatcher = NoteDispatcher(self._brain)
@@ -76,20 +79,56 @@ class Harness:
             from clarion.brain.tools import ClarificationRequested
             raise ClarificationRequested(dispatch.clarification_question)
 
-        # Step 3: Try fast path — tight, validated toolchain
+        # Step 3: Process intents — multi-intent notes get each intent handled
         from clarion.harness.fast_paths import try_fast_path
-        fast_result = await try_fast_path(dispatch, note, self._brain, self._router)
-        if fast_result is not None:
-            summary, brain_changed = fast_result
-            logger.info("Fast path handled: %s -> %s", dispatch.dispatch_type.value, summary)
+
+        intents = dispatch.intents if dispatch.intents else [
+            SingleIntent(dispatch_type=dispatch.dispatch_type,
+                         target_files=dispatch.target_files, content=note.content)
+        ]
+
+        # Try fast paths for each intent
+        summaries = []
+        unhandled_intents = []
+        for intent in intents:
+            # Build a sub-dispatch for this intent
+            sub_dispatch = DispatchResult(
+                dispatch_type=intent.dispatch_type,
+                tier=dispatch.tier,
+                target_files=intent.target_files,
+                reasoning=dispatch.reasoning,
+            )
+            # Create a sub-note with just this intent's content
+            sub_note = RawNote(
+                id=note.id, content=intent.content or note.content,
+                source_client=note.source_client, input_method=note.input_method,
+                location=note.location, metadata=note.metadata,
+                created_at=note.created_at, status=note.status,
+            )
+            fast_result = await try_fast_path(sub_dispatch, sub_note, self._brain, self._router)
+            if fast_result is not None:
+                summary, _ = fast_result
+                summaries.append(summary)
+                logger.info("Fast path handled intent: %s -> %s",
+                            intent.dispatch_type.value, summary)
+            else:
+                unhandled_intents.append(intent)
+
+        # If all intents handled via fast paths, return combined result
+        if summaries:
+            self._query_cache.invalidate_all()  # brain changed
+
+        if not unhandled_intents and summaries:
+            combined = "; ".join(summaries)
             return HarnessResult(
-                content=summary,
+                content=combined,
                 tool_calls_made=0,
                 total_usage=TokenUsage(0, 0),
                 model_used="fast_path",
                 validation_notes=[
                     f"dispatch: {dispatch.dispatch_type.value}",
-                    f"fast_path: {summary}",
+                    f"intents: {len(intents)}",
+                    f"fast_path: {combined}",
                 ],
             )
 
@@ -158,13 +197,34 @@ class Harness:
         else:
             result.validation_notes.extend(validation.issues)
 
+        self._query_cache.invalidate_all()  # brain changed
         return result
 
     async def handle_query(self, query: str, source_client: str) -> HarnessResult:
-        """Answer a user query using the multi-step pipeline."""
+        """Answer a user query using the multi-step pipeline with caching."""
         from clarion.harness.query_pipeline import execute_query_pipeline
+        import hashlib
 
         start_time = time.monotonic()
+
+        # Check cache
+        brain_state = self._brain.snapshot_file_state()
+        brain_hash = hashlib.sha256(
+            str(sorted(brain_state.items())).encode()
+        ).hexdigest()[:16]
+
+        cached = self._query_cache.get(query, source_client, brain_hash)
+        if cached is not None:
+            duration = int((time.monotonic() - start_time) * 1000)
+            logger.info("Query cache hit in %dms: %s", duration, query[:50])
+            return HarnessResult(
+                content=cached.answer,
+                tool_calls_made=0,
+                total_usage=TokenUsage(0, 0),
+                model_used="cache",
+                view=cached.view,
+                validation_notes=cached.notes + ["cache_hit"],
+            )
 
         answer, view, notes = await execute_query_pipeline(
             query=query,
@@ -175,6 +235,9 @@ class Harness:
             config=self._config,
             prompts=self._prompts,
         )
+
+        # Cache the result
+        self._query_cache.put(query, source_client, brain_hash, answer, view, notes)
 
         duration = int((time.monotonic() - start_time) * 1000)
         logger.info("Query pipeline completed in %dms: %s", duration, notes)

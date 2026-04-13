@@ -10,9 +10,10 @@ harness falls through to the full agent loop.
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
+
+from clarion.harness.output_utils import extract_answer
 
 from clarion.brain.manager import BrainManager
 from clarion.config import HarnessConfig
@@ -31,11 +32,13 @@ LIST_ADD_PROMPT = """\
 You are updating a brain file. The user wants to ADD item(s) to a list.
 
 The current file content is shown below. Add the new item(s) in the appropriate \
-place within the file's existing structure. Maintain the file's formatting (markdown \
-lists, headings, sections).
+place within the file's existing structure. Maintain the file's formatting.
 
-Reply with ONLY the complete updated file content. No explanation, no code blocks — \
-just the raw file content that should replace the current file."""
+You may reason about where to place the items, but your final answer MUST start \
+with "ANSWER:" followed by the complete updated file content. No code blocks.
+
+ANSWER:
+(the full updated file content here)"""
 
 LIST_REMOVE_PROMPT = """\
 You are updating a brain file. The user is indicating something is DONE, bought, \
@@ -46,8 +49,11 @@ Do not mark them — remove them entirely. The brain should reflect current real
 
 If the item is not in the list, return the file unchanged.
 
-Reply with ONLY the complete updated file content. No explanation, no code blocks — \
-just the raw file content that should replace the current file."""
+You may reason about what to remove, but your final answer MUST start with \
+"ANSWER:" followed by the complete updated file content.
+
+ANSWER:
+(the full updated file content here)"""
 
 INFO_UPDATE_PROMPT = """\
 You are updating a brain file. The user is providing updated information about \
@@ -56,8 +62,11 @@ something that already exists in the brain.
 The current file content is shown below. Update the relevant information to reflect \
 the new state. Replace old values, don't append both old and new.
 
-Reply with ONLY the complete updated file content. No explanation, no code blocks — \
-just the raw file content that should replace the current file."""
+You may reason about what to update, but your final answer MUST start with \
+"ANSWER:" followed by the complete updated file content.
+
+ANSWER:
+(the full updated file content here)"""
 
 REMINDER_PROMPT = """\
 The user wants to be reminded about something. Extract the reminder details.
@@ -81,9 +90,6 @@ async def try_fast_path(
     Returns (summary_text, brain_changed) on success, or None if the fast path
     can't handle this note (fall through to full agent loop).
     """
-    if not dispatch.target_files:
-        return None  # no target file identified — can't fast-path
-
     handler = FAST_PATH_HANDLERS.get(dispatch.dispatch_type)
     if handler is None:
         return None
@@ -103,6 +109,8 @@ async def _handle_list_add(
     router: ModelRouter,
 ) -> tuple[str, bool] | None:
     """Fast path: add item(s) to a known list file."""
+    if not dispatch.target_files:
+        return None
     target = dispatch.target_files[0]
     current = brain.read_file(target)
     if current is None:
@@ -117,13 +125,13 @@ async def _handle_list_add(
         )),
     ]
 
-    response = await provider.complete(messages, temperature=0.0, max_tokens=2000)
-    new_content = response.content
+    response = await provider.complete(messages, temperature=0.0)
+    new_content = extract_answer(response.content or "")
     if not new_content or new_content.strip() == current.strip():
         return None  # model didn't change anything
 
     # Strip any markdown code fences the model might have added
-    new_content = _strip_code_fences(new_content)
+
 
     brain.write_file(target, new_content)
     logger.info("Fast path list_add: updated %s", target)
@@ -137,6 +145,8 @@ async def _handle_list_remove(
     router: ModelRouter,
 ) -> tuple[str, bool] | None:
     """Fast path: remove/complete item(s) from a known list file."""
+    if not dispatch.target_files:
+        return None
     target = dispatch.target_files[0]
     current = brain.read_file(target)
     if current is None:
@@ -151,12 +161,12 @@ async def _handle_list_remove(
         )),
     ]
 
-    response = await provider.complete(messages, temperature=0.0, max_tokens=2000)
-    new_content = response.content
+    response = await provider.complete(messages, temperature=0.0)
+    new_content = extract_answer(response.content or "")
     if not new_content:
         return None
 
-    new_content = _strip_code_fences(new_content)
+
 
     if new_content.strip() == current.strip():
         return f"Item not found in {target}, no changes", False
@@ -173,6 +183,8 @@ async def _handle_info_update(
     router: ModelRouter,
 ) -> tuple[str, bool] | None:
     """Fast path: update existing info in a known file."""
+    if not dispatch.target_files:
+        return None
     target = dispatch.target_files[0]
     current = brain.read_file(target)
     if current is None:
@@ -187,12 +199,12 @@ async def _handle_info_update(
         )),
     ]
 
-    response = await provider.complete(messages, temperature=0.0, max_tokens=2000)
-    new_content = response.content
+    response = await provider.complete(messages, temperature=0.0)
+    new_content = extract_answer(response.content or "")
     if not new_content:
         return None
 
-    new_content = _strip_code_fences(new_content)
+
 
     if new_content.strip() == current.strip():
         return f"No changes needed in {target}", False
@@ -200,17 +212,6 @@ async def _handle_info_update(
     brain.write_file(target, new_content)
     logger.info("Fast path info_update: updated %s", target)
     return f"Updated {target}", True
-
-
-def _strip_code_fences(text: str) -> str:
-    """Remove markdown code fences that models sometimes wrap around content."""
-    stripped = text.strip()
-    if stripped.startswith("```") and stripped.endswith("```"):
-        lines = stripped.split("\n")
-        # Remove first line (```markdown or ```) and last line (```)
-        if len(lines) >= 3:
-            return "\n".join(lines[1:-1])
-    return stripped
 
 
 async def _handle_reminder(

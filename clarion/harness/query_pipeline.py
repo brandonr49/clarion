@@ -37,7 +37,10 @@ Reply with ONLY a JSON object:
 Important:
 - Use the EXACT file paths from the index (including subdirectories like "shopping/grocery_list.md")
 - Include ALL files that might be relevant, not just one
-- Do NOT answer the query — just identify the files"""
+- Do NOT answer the query — just identify the files
+
+You may reason about which files are relevant, but your final answer MUST start \
+with "ANSWER:" followed by the JSON object."""
 
 ANSWER_WITH_CONTEXT_PROMPT = """\
 You are Clarion, a personal assistant. Answer the user's question using ONLY the \
@@ -225,20 +228,13 @@ async def _classify_query(
     ]
 
     try:
-        response = await provider.complete(messages, temperature=0.0, max_tokens=500)
+        from clarion.harness.output_utils import extract_json_from_answer
+
+        response = await provider.complete(messages, temperature=0.0)
         text = response.content or ""
 
-        # Parse JSON from response
-        import re
-        json_match = re.search(r'\{[^{}]*"relevant_files"[^{}]*\}', text, re.DOTALL)
-        if not json_match:
-            # Try finding a JSON block
-            block_match = re.search(r'```(?:json)?\s*\n(.*?)\n\s*```', text, re.DOTALL)
-            if block_match:
-                json_match = re.search(r'\{.*\}', block_match.group(1), re.DOTALL)
-
-        if json_match:
-            data = json.loads(json_match.group(0))
+        data = extract_json_from_answer(text)
+        if data:
             files = data.get("relevant_files", [])
             if isinstance(files, list):
                 return [f for f in files if isinstance(f, str)]
@@ -272,8 +268,12 @@ async def _answer_with_context(
         )),
     ]
 
-    response = await provider.complete(messages, temperature=0.0, max_tokens=2000)
-    return response.content or "", list(file_contents.keys())
+    response = await provider.complete(messages, temperature=0.0)
+    content = response.content or ""
+    # Extract the answer portion (strips any reasoning/thinking)
+    from clarion.harness.output_utils import extract_answer
+    content = extract_answer(content)
+    return content, list(file_contents.keys())
 
 
 async def _broaden_search(

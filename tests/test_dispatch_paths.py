@@ -225,22 +225,20 @@ async def test_full_dispatch_lifecycle(env):
     # ============================================================
     print("\n--- Phase 5: Reminder ---")
 
-    await process(harness, "remind me to call the dentist tomorrow", label="reminder")
+    result = await process(harness, "remind me to call the dentist tomorrow", label="reminder")
 
-    # Check if reminder was stored in the reminders file OR in brain content
+    # The dispatcher MUST identify this as a reminder and use the fast path
     from clarion.harness.reminders import get_pending_reminders
     reminders = get_pending_reminders(brain)
-    brain_has_dentist = "dentist" in all_brain_content(brain).lower()
-
-    if reminders:
-        print(f"  ✓ {len(reminders)} reminder(s) in reminder system")
-        for r in reminders:
-            print(f"    - {r.get('reminder', '?')} ({r.get('when_text', '?')})")
-    elif brain_has_dentist:
-        print(f"  ✓ Dentist reminder stored in brain (not reminder system)")
-    else:
-        print(f"  ✗ Dentist not found anywhere")
-    assert reminders or brain_has_dentist, "Expected dentist reminder somewhere in brain"
+    assert len(reminders) >= 1, (
+        f"Expected reminder in reminder system. "
+        f"Dispatch notes: {result.validation_notes}"
+    )
+    print(f"  ✓ {len(reminders)} reminder(s) in reminder system")
+    for r in reminders:
+        print(f"    - {r.get('reminder', '?')} ({r.get('when_text', '?')})")
+    assert any("reminder" in n or "fast_path" in n for n in result.validation_notes), \
+        f"Expected reminder fast path, got: {result.validation_notes}"
 
     # ============================================================
     # PHASE 6: Full LLM (novel topic)

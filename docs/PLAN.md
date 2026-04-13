@@ -71,12 +71,20 @@ All six foundational decisions are resolved. Full details in `docs/decisions/D1-
 - [x] Push notifications for clarifications (WorkManager background polling)
 - [x] Offline note queue (persisted, auto-syncs on reconnect)
 
-### Phase 6: Harness Expansion (NEXT)
-- [ ] Expand dispatch categories (db_add, db_remove, db_query, reminder, journal, batch)
-- [ ] Reminder dispatch path: "remind me at 3pm" → schedule notification via server push
-- [ ] Bespoke fast-path toolchains with schema injection for database ops
+### Phase 6: Harness Expansion (IN PROGRESS)
+- [x] Bespoke fast-path toolchains (list_add, list_remove, info_update)
+- [x] Reminder dispatch path with storage in brain
+- [x] Brain reorganization/review job (POST /brain/review, strong model)
+- [x] Fixed dispatch JSON parser (balanced braces, text fallback)
+- [x] GET /reminders endpoint for client notification polling
+- [ ] Dispatch confidence scoring (low confidence → always full LLM)
+- [ ] Multi-intent detection (split notes with 2+ intents, process each)
+- [ ] Brain file staleness tracking (last read/write timestamps for archival decisions)
+- [ ] Note-to-file attribution (track which raw notes contributed to each brain file;
+      store in separate section of file, read/write tools that include/exclude attribution)
+- [ ] Query result caching (cache identical queries for 5 min, invalidate on brain change)
+- [ ] Expand dispatch to db_add, db_remove, db_query with schema injection
 - [ ] Column metadata in _schema_meta (required, optional, defaults, descriptions)
-- [ ] Brain reorganization jobs (periodic large-model structure review)
 - [ ] Data format evolution (LLM migrates growing markdown lists to databases)
 - [ ] Semantic validation (does query response address the question?)
 - [ ] Harness telemetry (success rates per task type, model, prompt)

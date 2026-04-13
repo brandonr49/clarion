@@ -47,17 +47,55 @@ Examples:
 - Long multi-topic notes that touch several areas
 - Anything you're not confident classifying into the above categories
 
+## Multi-Intent Notes
+
+Some notes contain MULTIPLE intents. For example:
+- "buy milk and remind me about the dentist tomorrow" → list_add + reminder
+- "I bought the eggs and I want to watch Dune" → list_remove + list_add
+- "Lily is wearing 3T now, also need diapers" → info_update + list_add
+
+If a note has multiple intents, list ALL of them in the `intents` array.
+If a note has only one intent, still use the array with one entry.
+
 ## Instructions
 
-Given the brain index and the new note, reply with ONLY a JSON object:
+Given the brain index and the new note, reply with a JSON object.
 
+For a single-intent note:
 ```json
 {
-  "intent": "list_add|list_remove|info_update|reminder|needs_clarification|full_llm",
-  "target_files": ["path/to/relevant/file.md"],
-  "reasoning": "brief explanation of why you chose this intent",
-  "clarification_question": "only if intent is needs_clarification"
+  "intents": [
+    {"intent": "list_add", "target_files": ["shopping/grocery_list.md"], "content": "buy milk"}
+  ],
+  "confidence": "high",
+  "reasoning": "adding grocery item"
 }
 ```
 
+For a multi-intent note:
+```json
+{
+  "intents": [
+    {"intent": "list_add", "target_files": ["shopping/grocery_list.md"], "content": "buy milk"},
+    {"intent": "reminder", "target_files": [], "content": "remind me about the dentist tomorrow"}
+  ],
+  "confidence": "high",
+  "reasoning": "two separate actions: grocery add and reminder"
+}
+```
+
+The `content` field should contain the portion of the note relevant to that intent.
+
+The `confidence` field indicates how sure you are:
+- "high" — you are very confident this is the right classification
+- "medium" — you think this is right but there's some ambiguity
+- "low" — you're guessing, this could easily be wrong
+
+If confidence is "low", the system will ignore your classification and use full_llm instead.
+
 When in doubt between a fast path and full_llm, choose full_llm. Better to think hard than to misclassify.
+
+You may reason about your choice, but your final answer MUST start with "ANSWER:" followed by the JSON object.
+
+ANSWER:
+{"intents": [{"intent": "list_add", "target_files": ["shopping/grocery_list.md"], "content": "buy milk"}], "reasoning": "adding grocery item"}
