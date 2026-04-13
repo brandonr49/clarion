@@ -62,8 +62,19 @@ async def lifespan(app: FastAPI):
     prompts = load_prompts(prompts_dir)
     logger.info("Loaded %d prompts: %s", len(prompts), list(prompts.keys()))
 
-    # 10. Initialize harness
-    harness = Harness(router, registry, brain, config.harness, prompts)
+    # 10. Initialize embedding index
+    from clarion.brain.embeddings import EmbeddingIndex
+    embedding_index = EmbeddingIndex(
+        brain=brain,
+        storage_path=data_dir / "embeddings.json",
+    )
+    if embedding_index.size == 0 and not brain.is_empty():
+        logger.info("Building initial embedding index...")
+        embedding_index.rebuild()
+
+    # 11. Initialize harness
+    harness = Harness(router, registry, brain, config.harness, prompts,
+                      embedding_index=embedding_index)
 
     # 11. Start processing worker
     worker_task = asyncio.create_task(
@@ -81,12 +92,17 @@ async def lifespan(app: FastAPI):
         job_checker(db, brain, harness, check_interval=300.0)
     )
 
-    # 14. Store in app state
+    # 14. Initialize dashboard manager
+    from clarion.harness.dashboards import DashboardManager
+    dashboards = DashboardManager(data_dir / "dashboards.json")
+
+    # 15. Store in app state
     app.state.db = db
     app.state.note_store = note_store
     app.state.harness = harness
     app.state.config = config
     app.state.brain = brain
+    app.state.dashboards = dashboards
 
     logger.info(
         "Clarion started on %s:%d (data_dir=%s)",
@@ -124,11 +140,15 @@ def create_app() -> FastAPI:
     from clarion.server.routes_query import router as query_router
     from clarion.server.routes_clarifications import router as clarifications_router
     from clarion.server.routes_status import router as status_router
+    from clarion.server.routes_brain import router as brain_router
+    from clarion.server.routes_dashboards import router as dashboards_router
 
     app.include_router(notes_router)
     app.include_router(query_router)
     app.include_router(clarifications_router)
     app.include_router(status_router)
+    app.include_router(brain_router)
+    app.include_router(dashboards_router)
 
     # Serve web UI
     web_dir = Path(__file__).parent.parent / "web"

@@ -118,6 +118,7 @@ async def execute_query_pipeline(
     registry: ToolRegistry,
     config: HarnessConfig,
     prompts: dict[str, str],
+    embedding_index=None,
 ) -> tuple[str, dict | None, list[str]]:
     """Execute the multi-step query pipeline.
 
@@ -135,14 +136,40 @@ async def execute_query_pipeline(
             ["brain_empty"],
         )
 
-    # Step 1: Classify — identify relevant files
+    # Step 0: Semantic search (if embeddings available) — instant, no LLM call
+    embedding_hits = []
+    if embedding_index and embedding_index.size > 0:
+        embedding_results = embedding_index.search(query, top_k=5)
+        embedding_hits = [(path, round(score, 3)) for path, score in embedding_results if score > 0.3]
+        notes.append(f"step0_embedding: {embedding_hits}")
+        logger.info("Embedding search found: %s", embedding_hits)
+
+    # Step 1: Classify — LLM confirms/refines embedding results
     provider = router.get_provider(Tier.FAST)
-    relevant_files = await _classify_query(provider, query, brain_index)
+
+    # If we have embedding hits, include them in the classification prompt
+    if embedding_hits:
+        embedding_context = "\n".join(
+            f"- `{path}` (similarity: {score})" for path, score in embedding_hits
+        )
+        enhanced_index = (
+            f"## Semantic Search Results (most relevant files)\n\n{embedding_context}\n\n"
+            f"## Full Brain Index\n\n{brain_index}"
+        )
+        relevant_files = await _classify_query(provider, query, enhanced_index)
+    else:
+        relevant_files = await _classify_query(provider, query, brain_index)
+
     notes.append(f"step1_classify: {relevant_files}")
     logger.info("Query classification identified files: %s", relevant_files)
 
+    # If LLM classification found nothing, fall back to embedding hits
+    if not relevant_files and embedding_hits:
+        relevant_files = [path for path, _ in embedding_hits]
+        notes.append(f"step1_fallback_embedding: {relevant_files}")
+
     if not relevant_files:
-        # Classifier found nothing — try keyword search
+        # Still nothing — try keyword search
         search_results = brain.search(query.lower(), max_results=5)
         relevant_files = [r["path"] for r in search_results]
         notes.append(f"step1_fallback_search: {relevant_files}")

@@ -178,6 +178,19 @@
   <div id="clarList"></div>
 </div>
 
+<h2>Brain Browser</h2>
+<div style="display:flex; gap:12px; margin-bottom:16px;">
+  <button class="btn-secondary" onclick="loadBrainTree()">Load Brain</button>
+  <input id="brainSearchInput" placeholder="Search brain..." style="flex:1; padding:6px 10px; border:1px solid #333; border-radius:4px; background:#1a1a1a; color:#e0e0e0; font-size:0.85rem;">
+  <button class="btn-secondary" onclick="searchBrain()">Search</button>
+</div>
+<div id="brainBrowser" style="display:flex; gap:12px; min-height:200px;">
+  <div id="brainTree" style="flex:0 0 250px; border:1px solid #222; border-radius:6px; background:#141414; padding:8px; overflow-y:auto; max-height:400px; font-size:0.8rem;"></div>
+  <div id="brainFileView" style="flex:1; border:1px solid #222; border-radius:6px; background:#141414; padding:12px; overflow-y:auto; max-height:400px;">
+    <span class="empty">Select a file to view</span>
+  </div>
+</div>
+
 <h2>Recent Notes</h2>
 <div id="noteList"><span class="loading">Loading...</span></div>
 
@@ -557,6 +570,64 @@ document.getElementById('noteInput').addEventListener('keydown', (e) => {
     submitNote();
   }
 });
+
+// -- Brain Browser --
+
+async function loadBrainTree() {
+  try {
+    const resp = await fetch(`${API}/brain/tree`);
+    const data = await resp.json();
+    const tree = document.getElementById('brainTree');
+    tree.innerHTML = renderTree(data.tree, '');
+  } catch (e) {
+    document.getElementById('brainTree').innerHTML =
+      `<span class="empty">Error: ${escHtml(e.message)}</span>`;
+  }
+}
+
+function renderTree(entries, prefix) {
+  if (!entries || entries.length === 0) return '<span class="empty">(empty)</span>';
+  return entries.map(e => {
+    if (e.type === 'directory') {
+      return `<details style="margin-left:8px"><summary style="cursor:pointer;color:#aaa">📁 ${escHtml(e.name)}/</summary>${renderTree(e.children, e.path)}</details>`;
+    } else {
+      const size = e.size < 1024 ? `${e.size}b` : `${(e.size/1024).toFixed(1)}kb`;
+      return `<div style="margin-left:16px;padding:2px 0;cursor:pointer;color:#e0e0e0" onclick="loadBrainFile('${escHtml(e.path)}')">📄 ${escHtml(e.name)} <span style="color:#666;font-size:0.7rem">(${size})</span></div>`;
+    }
+  }).join('');
+}
+
+async function loadBrainFile(path) {
+  const viewer = document.getElementById('brainFileView');
+  viewer.innerHTML = '<span class="loading">Loading...</span>';
+  try {
+    const resp = await fetch(`${API}/brain/file?path=${encodeURIComponent(path)}`);
+    const data = await resp.json();
+    viewer.innerHTML = `<div style="font-size:0.75rem;color:#666;margin-bottom:8px">${escHtml(path)} (${data.line_count} lines)</div><pre style="white-space:pre-wrap;font-size:0.85rem;line-height:1.4">${escHtml(data.content)}</pre>`;
+  } catch (e) {
+    viewer.innerHTML = `<span class="empty">Error: ${escHtml(e.message)}</span>`;
+  }
+}
+
+async function searchBrain() {
+  const q = document.getElementById('brainSearchInput').value.trim();
+  if (!q) return;
+  const viewer = document.getElementById('brainFileView');
+  viewer.innerHTML = '<span class="loading">Searching...</span>';
+  try {
+    const resp = await fetch(`${API}/brain/search?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if (data.results.length === 0) {
+      viewer.innerHTML = `<span class="empty">No results for "${escHtml(q)}"</span>`;
+      return;
+    }
+    viewer.innerHTML = data.results.map(r =>
+      `<div style="margin-bottom:12px"><div style="cursor:pointer;color:#2563eb" onclick="loadBrainFile('${escHtml(r.path)}')">${escHtml(r.path)}</div>${r.snippets.map(s => `<div style="font-size:0.8rem;color:#888;margin-left:12px">Line ${s.line}: ${escHtml(s.text)}</div>`).join('')}</div>`
+    ).join('');
+  } catch (e) {
+    viewer.innerHTML = `<span class="empty">Error: ${escHtml(e.message)}</span>`;
+  }
+}
 
 // Initial load + polling
 loadNotes();

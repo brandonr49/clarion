@@ -49,6 +49,7 @@ class Harness:
         brain: BrainManager,
         config: HarnessConfig,
         prompts: dict[str, str],
+        embedding_index=None,
     ):
         from clarion.harness.query_cache import QueryCache
         from clarion.harness.telemetry import HarnessTelemetry
@@ -56,6 +57,7 @@ class Harness:
         self._router = router
         self._registry = registry
         self._brain = brain
+        self._embedding_index = embedding_index
         self._query_cache = QueryCache(ttl_seconds=300.0)
         self.telemetry = HarnessTelemetry()
         self._config = config
@@ -201,6 +203,17 @@ class Harness:
 
         self._query_cache.invalidate_all()  # brain changed
 
+        # Update embeddings for changed files
+        if self._embedding_index:
+            state_after_final = self._brain.snapshot_file_state()
+            added, removed, modified = self._brain.diff_file_state(
+                state_before, state_after_final
+            )
+            for path in added | modified:
+                self._embedding_index.update_file(path)
+            for path in removed:
+                self._embedding_index.remove_file(path)
+
         # Education mode: for priming notes, also run knowledge extraction
         # to build structured user profile from the context dump
         if note.input_method == "priming":
@@ -285,6 +298,7 @@ class Harness:
             registry=self._registry,
             config=self._config,
             prompts=self._prompts,
+            embedding_index=self._embedding_index,
         )
 
         # Semantic validation: quick check if the answer addresses the query
