@@ -142,7 +142,28 @@ private fun ClarificationCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                TextButton(
+                    onClick = {
+                        if (!submitting) {
+                            submitting = true
+                            scope.launch {
+                                try {
+                                    api.dismissClarification(clar.id)
+                                    onAnswered()
+                                } catch (_: Exception) {}
+                                submitting = false
+                            }
+                        }
+                    },
+                    enabled = !submitting,
+                ) {
+                    Text("Dismiss", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
                 Button(
                     onClick = {
                         if (answer.isNotBlank() && !submitting) {

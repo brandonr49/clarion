@@ -99,12 +99,28 @@ def _find_matching_brace(text: str, start: int) -> int | None:
     return None
 
 
+def _repair_json(text: str) -> str:
+    """Attempt to fix common LLM JSON output errors."""
+    import re
+    # Fix double-quote keys: {""key" -> {"key"
+    text = re.sub(r'""(\w+)"', r'"\1"', text)
+    # Fix trailing commas before ] or }
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+    return text
+
+
 def _try_parse_view_json(candidate: str) -> dict | None:
-    """Try to parse a string as a view JSON object."""
+    """Try to parse a string as a view JSON object, with repair."""
+    # Try direct parse first
     try:
         data = json.loads(candidate)
     except json.JSONDecodeError:
-        return None
+        # Try with repairs
+        try:
+            data = json.loads(_repair_json(candidate))
+            logger.debug("JSON repaired successfully")
+        except json.JSONDecodeError:
+            return None
 
     if not isinstance(data, dict):
         return None
