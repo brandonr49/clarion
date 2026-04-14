@@ -37,9 +37,12 @@ OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
 MODELS = [
     "llama3.2:3b",
-    "llama3.1:8b",
     "qwen2.5:7b",
     "qwen3:8b",
+    "qwen3:14b",
+    "qwen3:32b",
+    "gemma3:12b",
+    "gemma4:latest",
 ]
 
 
@@ -98,14 +101,43 @@ class BenchmarkReport:
                     print(f"  {'SKIP':>12}", end="")
             print()
 
-        # Totals
+        # Totals + timing
         print("-" * (35 + 14 * len(models)))
-        print(f"{'TOTAL PASS':<35}", end="")
+        print(f"{'PASS RATE':<35}", end="")
         for model in models:
             passed = sum(1 for r in self.results if r.model == model and r.passed)
             total = sum(1 for r in self.results if r.model == model)
-            print(f"  {passed}/{total}:>12", end="")
+            pct = f"{100*passed/total:.0f}%" if total > 0 else "N/A"
+            print(f"  {pct:>12}", end="")
         print()
+
+        print(f"{'AVG TIME (s)':<35}", end="")
+        for model in models:
+            model_results = [r for r in self.results if r.model == model]
+            if model_results:
+                avg = sum(r.duration_s for r in model_results) / len(model_results)
+                print(f"  {avg:>10.1f}s", end="")
+            else:
+                print(f"  {'N/A':>12}", end="")
+        print()
+
+        # Model comparison table (for README)
+        print(f"\n\n{'MODEL COMPARISON TABLE (for README)':}")
+        print("-" * 70)
+        print(f"{'| Model':<25}| {'Pass Rate':>10} | {'Avg Time':>10} | {'Type':>8} | {'Size':>6} |")
+        print(f"|{'-'*24}|{'-'*12}|{'-'*12}|{'-'*10}|{'-'*8}|")
+        for model in models:
+            model_results = [r for r in self.results if r.model == model]
+            if not model_results:
+                continue
+            passed = sum(1 for r in model_results if r.passed)
+            total = len(model_results)
+            pct = f"{100*passed/total:.0f}%"
+            avg = sum(r.duration_s for r in model_results) / total
+            mtype = "local"
+            # Estimate model size from name
+            size = model.split(":")[-1] if ":" in model else "?"
+            print(f"| {model:<23}| {pct:>10} | {avg:>8.1f}s | {mtype:>8} | {size:>6} |")
 
         # Detailed failures
         failures = [r for r in self.results if not r.passed]
@@ -113,13 +145,11 @@ class BenchmarkReport:
             print(f"\n{'FAILURE DETAILS':}")
             print("-" * 60)
             for r in failures:
-                print(f"\n  [{r.model}] {r.scenario}")
+                print(f"\n  [{r.model}] {r.scenario} ({r.duration_s:.1f}s)")
                 if r.error:
-                    print(f"    Error: {r.error}")
+                    print(f"    Error: {r.error[:100]}")
                 if r.content_missing:
-                    print(f"    Missing in brain: {r.content_missing}")
-                print(f"    Tool calls: {r.tool_calls}")
-                print(f"    Brain files: {r.brain_files_created}")
+                    print(f"    Missing: {r.content_missing}")
                 if r.notes:
                     print(f"    Notes: {r.notes}")
 

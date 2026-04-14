@@ -44,12 +44,35 @@ For each new model, run:
 Record: pass rate, avg time per note, tool call count, brain organization quality,
 query accuracy, JSON view generation reliability.
 
-## Model Quality Observations So Far
+## Benchmark Results (April 2026)
 
-| Model | Pass Rate | Avg Time | Tool Use | View JSON | Notes |
-|-------|-----------|----------|----------|-----------|-------|
-| qwen3:8b | 100% | ~25s | Reliable | Good | Default choice |
-| qwen2.5:7b | 100% | ~10s | Reliable | OK | Faster but less precise |
-| llama3.1:8b | 80% | ~10s | OK | Poor | Skips reads on queries |
-| llama3.2:3b | 40% | ~5s | Poor | Poor | Too small |
-| Claude Haiku | 100% | ~2s | Excellent | Good | Cloud, costs money |
+5 scenarios tested: bootstrap, two-note update, different topics, query, priming.
+All local models on Mac with 48GB RAM (Apple Silicon). Times include LLM thinking.
+
+| Model | Size | Pass Rate | Avg Time | Cost | Notes |
+|-------|------|-----------|----------|------|-------|
+| **gemma4** | 9.6 GB | **100%** | **55.6s** | Free | Excellent. Best speed/quality ratio for local. |
+| **qwen2.5:7b** | 4.7 GB | **100%** | **29.6s** | Free | Fastest 100% model. Good for fast-path dispatch. |
+| **qwen3:8b** | 5.2 GB | **100%** | 133.7s | Free | Current default. Reliable but slow (thinks hard). |
+| **qwen3:14b** | 9.3 GB | **100%** | 130.3s | Free | Same speed as 8b, equally reliable. |
+| qwen3:32b | 20 GB | 80% | 264.0s | Free | Slower, failed 1 scenario. Not worth the RAM cost. |
+| gemma3:12b | 8.1 GB | 20% | 3.5s | Free | Tool-use format incompatible with Ollama. Don't use. |
+| llama3.2:3b | 2.0 GB | 40% | 12.4s | Free | Too small for reliable tool use. |
+| Claude Haiku | Cloud | 100% | ~2s | $$ | Cloud. Fastest overall. Costs per token. |
+| Claude Sonnet | Cloud | 100%* | ~3s | $$$ | Cloud. Best quality for complex reasoning. |
+
+*Sonnet tested on individual scenarios, not full benchmark.
+
+### Key Findings
+
+1. **gemma4 is a strong contender** — 100% pass rate at 55.6s avg, significantly
+   faster than qwen3:8b (133.7s). Consider as default or tier1 fast model.
+2. **qwen2.5:7b is the speed champion** — 100% at 29.6s. Great for dispatch and
+   fast paths where speed matters more than depth.
+3. **qwen3:8b is reliable but slow** — extensive chain-of-thought thinking makes
+   it thorough but 2-4x slower than alternatives.
+4. **Bigger isn't always better** — qwen3:32b (80%) performed worse than qwen3:8b (100%)
+   while being 2x slower. May need different prompt tuning for larger models.
+5. **gemma3 doesn't work** — tool-use format incompatible with current Ollama version.
+6. **Cloud models are fast but cost money** — Claude Haiku at ~2s is unbeatable for
+   speed when cost isn't a concern.

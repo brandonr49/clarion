@@ -180,6 +180,19 @@ Queries use a multi-step pipeline — NOT the agent loop:
               { raw_text, view: {type, ...} }
 ```
 
+## Model Benchmark
+
+| Model | Size | Pass Rate | Avg Time | Notes |
+|-------|------|-----------|----------|-------|
+| **gemma4** | 9.6 GB | **100%** | **55.6s** | Best speed/quality ratio |
+| **qwen2.5:7b** | 4.7 GB | **100%** | **29.6s** | Fastest local model |
+| **qwen3:8b** | 5.2 GB | **100%** | 133.7s | Current default, thorough |
+| qwen3:14b | 9.3 GB | 100% | 130.3s | Same speed as 8b |
+| qwen3:32b | 20 GB | 80% | 264.0s | Slower, not worth RAM cost |
+| Claude Haiku | Cloud | 100% | ~2s | Fastest overall, costs $$ |
+
+See [docs/model-experiments.md](docs/model-experiments.md) for full details.
+
 ## Model Routing
 
 ```
